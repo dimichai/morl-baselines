@@ -276,15 +276,17 @@ class PCNTNDP(MOAgent, MOPolicy):
         action = self.np_random.choice(np.arange(len(log_probs)), p=np.exp(log_probs))
         return action
 
-    def _run_episode(self, env, desired_return, desired_horizon, max_return):
+    def _run_episode(self, env, desired_return, desired_horizon, max_return, starting_loc=None):
         transitions = []
-        obs, info = env.reset()
-        obs = obs['location_vector']
+        state, info = env.reset(loc=starting_loc)
+        states = [state['location']]
+        obs = state['location_vector']
         done = False
         while not done:
             action = self._act(obs, desired_return, desired_horizon, info['action_mask'])
-            n_obs, reward, terminated, truncated, info = env.step(action)
-            n_obs = n_obs['location_vector']
+            n_state, reward, terminated, truncated, info = env.step(action)
+            states.append(n_state['location'])
+            n_obs = n_state['location_vector']
             done = terminated or truncated
 
             transitions.append(
@@ -303,7 +305,7 @@ class PCNTNDP(MOAgent, MOPolicy):
             desired_return = np.clip(desired_return - reward, None, max_return, dtype=np.float32)
             # clip desired horizon to avoid negative horizons
             desired_horizon = np.float32(max(desired_horizon - 1, 1.0))
-        return transitions
+        return transitions, states
 
     def set_desired_return_and_horizon(self, desired_return: np.ndarray, desired_horizon: int):
         """Set desired return and horizon for evaluation."""
@@ -314,22 +316,25 @@ class PCNTNDP(MOAgent, MOPolicy):
         """Evaluate policy action for a given observation."""
         return self._act(obs, self.desired_return, self.desired_horizon)
 
-    def evaluate(self, env, max_return, n=10):
+    def evaluate(self, env, max_return, n=10, starting_loc=None):
         """Evaluate policy in the given environment."""
         episodes = self._nlargest(n)
         returns, horizons = list(zip(*[(e[2][0].reward, len(e[2])) for e in episodes]))
         returns = np.float32(returns)
         horizons = np.float32(horizons)
         e_returns = []
+        transitions = []
+        e_states = []
         for i in range(n):
-            transitions = self._run_episode(env, returns[i], np.float32(horizons[i] - 2), max_return)
+            transitions, states = self._run_episode(env, returns[i], np.float32(horizons[i] - 2), max_return, starting_loc=starting_loc)
             # compute return
             for i in reversed(range(len(transitions) - 1)):
                 transitions[i].reward += self.gamma * transitions[i + 1].reward
             e_returns.append(transitions[0].reward)
+            e_states.append(states)
 
         distances = np.linalg.norm(np.array(returns) - np.array(e_returns), axis=-1)
-        return e_returns, np.array(returns), distances
+        return e_returns, np.array(returns), distances, e_states
 
     def save(self, filename: str = "PCN_model", savedir: str = "weights"):
         """Save PCN."""
@@ -415,7 +420,7 @@ class PCNTNDP(MOAgent, MOPolicy):
             returns = []
             horizons = []
             for _ in range(num_step_episodes):
-                transitions = self._run_episode(self.env, desired_return, desired_horizon, max_return)
+                transitions, _ = self._run_episode(self.env, desired_return, desired_horizon, max_return, starting_loc=starting_loc)
                 self.global_step += len(transitions)
                 self._add_episode(transitions, max_size=max_buffer_size, step=self.global_step)
                 returns.append(transitions[0].reward)
@@ -442,11 +447,12 @@ class PCNTNDP(MOAgent, MOPolicy):
             )
 
             if self.global_step >= (n_checkpoints + 1) * total_timesteps / 100:
-                self.save(savedir=save_dir)
+                self.save(savedir=save_dir, filename=f"PCN_model_{n_checkpoints}")
                 n_checkpoints += 1
                 n_points = 10
-                e_returns, _, _ = self.evaluate(eval_env, max_return, n=n_points)
-
+                e_returns, _, _, states = self.evaluate(eval_env, max_return, n=n_points, starting_loc=starting_loc)
+                # for i in states:
+                #     print(f'Line: {i}')
                 if self.log:
                     log_all_multi_policy_metrics(
                         current_front=e_returns,
