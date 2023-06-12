@@ -349,6 +349,7 @@ class PCNTNDP(MOAgent, MOPolicy):
         max_return: np.ndarray = 250.0,
         max_buffer_size: int = 500,
         starting_loc: Optional[np.ndarray] = None,
+        save_dir: str = "weights"
     ):
         """Train PCN.
 
@@ -441,7 +442,7 @@ class PCNTNDP(MOAgent, MOPolicy):
             )
 
             if self.global_step >= (n_checkpoints + 1) * total_timesteps / 100:
-                self.save()
+                self.save(savedir=save_dir)
                 n_checkpoints += 1
                 n_points = 10
                 e_returns, _, _ = self.evaluate(eval_env, max_return, n=n_points)
