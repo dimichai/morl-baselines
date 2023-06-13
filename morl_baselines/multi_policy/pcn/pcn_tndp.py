@@ -504,7 +504,7 @@ class PCNTNDP(MOAgent, MOPolicy):
                     highlight_cells([starting_loc], ax=ax, color='limegreen')
                     fig.suptitle(f'Generated Line | Checkpoint {n_checkpoints} | Line {i}')
                     fig.savefig(f'{save_dir}/Line_{n_checkpoints}_{i}.png')
-
+                    fig.close()
 
                 n_checkpoints += 1
                 
