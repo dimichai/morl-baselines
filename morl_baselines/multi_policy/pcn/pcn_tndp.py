@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import List, Optional, Union
 
 import gymnasium as gym
+from matplotlib import pyplot as plt
 import numpy as np
 import torch as th
 import torch.nn as nn
@@ -33,6 +34,30 @@ def crowding_distance(points):
     crowding = np.sum(crowding, axis=-1)
     return crowding
 
+def gen_line_plot_grid(line, grid_x_size, grid_y_size):
+    """Generates a grid_x_max * grid_y_max grid where each grid is valued by the frequency it appears in the generated lines.
+    Essentially creates a grid of the given line to plot later on.
+
+    Args:
+        line (list): list of generated lines of the model
+        grid_x_max (int): nr of lines in the grid
+        grid_y_mask (int): nr of columns in the grid
+    """
+    data = np.zeros((grid_x_size, grid_y_size))
+
+    for station in line:
+        data[station[0], station[1]] += 1
+    
+    return data
+
+def highlight_cells(cells, ax, **kwargs):
+    """Highlights a cell in a grid plot. https://stackoverflow.com/questions/56654952/how-to-mark-cells-in-matplotlib-pyplot-imshow-drawing-cell-borders
+    """
+    for cell in cells:
+        (y, x) = cell
+        rect = plt.Rectangle((x-.5, y-.5), 1,1, fill=False, **kwargs)
+        ax.add_patch(rect)
+    return rect
 
 @dataclass
 class Transition:
@@ -448,9 +473,8 @@ class PCNTNDP(MOAgent, MOPolicy):
 
             if self.global_step >= (n_checkpoints + 1) * total_timesteps / 100:
                 self.save(savedir=save_dir, filename=f"PCN_model_{n_checkpoints}")
-                n_checkpoints += 1
                 n_points = 10
-                e_returns, _, _, states = self.evaluate(eval_env, max_return, n=n_points, starting_loc=starting_loc)
+                e_returns, returns, _, e_states = self.evaluate(eval_env, max_return, n=n_points, starting_loc=starting_loc)
                 # for i in states:
                 #     print(f'Line: {i}')
                 if self.log:
@@ -462,3 +486,25 @@ class PCNTNDP(MOAgent, MOPolicy):
                         writer=self.writer,
                         ref_front=known_pareto_front,
                     )
+
+                fig, ax = plt.subplots(figsize=(5, 5))
+                ax.scatter(np.array(e_returns)[:, 0], np.array(e_returns)[:, 1], alpha=0.5, label='policy-generated')
+                ax.scatter(np.array(returns)[:, 0], np.array(returns)[:, 1], marker='*', color='r', alpha=0.5, label='best in experience replay')
+                ax.set_ylim([0, 0.5])
+                ax.set_xlim([0, 0.5])
+                ax.set_xlabel("Group 1")
+                ax.set_ylabel("Group 2")
+                ax.set_title(f"Current Front {n_checkpoints}")
+                fig.savefig(f"{save_dir}/Front_{n_checkpoints}.png")
+
+                fig, ax = plt.subplots(figsize=(5, 5))
+                for i in range(len(e_states)):
+                    plot_grid = gen_line_plot_grid(np.array(e_states[i]), 5, 5)
+                    ax.imshow(plot_grid)
+                    highlight_cells([starting_loc], ax=ax, color='limegreen')
+                    fig.suptitle(f'Generated Line | Checkpoint {n_checkpoints} | Line {i}')
+                    fig.savefig(f'{save_dir}/Line_{n_checkpoints}_{i}.png')
+
+
+                n_checkpoints += 1
+                
