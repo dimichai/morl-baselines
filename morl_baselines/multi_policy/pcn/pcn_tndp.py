@@ -496,6 +496,7 @@ class PCNTNDP(MOAgent, MOPolicy):
                 ax.set_ylabel("Group 2")
                 ax.set_title(f"Current Front {n_checkpoints}")
                 fig.savefig(f"{save_dir}/Front_{n_checkpoints}.png")
+                fig.close()
 
                 fig, ax = plt.subplots(figsize=(5, 5))
                 for i in range(len(e_states)):
