@@ -359,7 +359,7 @@ class PCNTNDP(MOAgent, MOPolicy):
             e_states.append(states)
 
         distances = np.linalg.norm(np.array(returns) - np.array(e_returns), axis=-1)
-        return e_returns, np.array(returns), distances, e_states
+        return np.array(e_returns), np.array(returns), distances, e_states
 
     def save(self, filename: str = "PCN_model", savedir: str = "weights"):
         """Save PCN."""
@@ -486,17 +486,20 @@ class PCNTNDP(MOAgent, MOPolicy):
                         writer=self.writer,
                         ref_front=known_pareto_front,
                     )
-
-                fig, ax = plt.subplots(figsize=(5, 5))
-                ax.scatter(np.array(e_returns)[:, 0], np.array(e_returns)[:, 1], alpha=0.5, label='policy-generated')
-                ax.scatter(np.array(returns)[:, 0], np.array(returns)[:, 1], marker='*', color='r', alpha=0.5, label='best in experience replay')
-                ax.set_ylim([0, 0.5])
-                ax.set_xlim([0, 0.5])
-                ax.set_xlabel("Group 1")
-                ax.set_ylabel("Group 2")
-                ax.set_title(f"Current Front {n_checkpoints}")
-                fig.savefig(f"{save_dir}/Front_{n_checkpoints}.png")
-                plt.close()
+                
+                # Only plot the pareto front as a scatter plot if there are two objectives
+                if e_returns.shape[1] == 2:
+                    fig, ax = plt.subplots(figsize=(5, 5))
+                    ax.scatter(e_returns[:, 0], np.array(e_returns)[:, 1], alpha=0.5, label='policy-generated')
+                    ax.scatter(returns[:, 0], np.array(returns)[:, 1], marker='*', color='r', alpha=0.5, label='best in experience replay')
+                    ax.set_xlim([0, 0.5])
+                    ax.set_ylim([0, 0.5])
+                    ax.set_xlabel("Objective 1")
+                    ax.set_ylabel("Objective 2")
+                    ax.set_title(f"Current Front {n_checkpoints}")
+                    fig.legend()
+                    fig.savefig(f"{save_dir}/Front_{n_checkpoints}.png")
+                    plt.close()
 
                 fig, ax = plt.subplots(figsize=(5, 5))
                 for i in range(len(e_states)):
