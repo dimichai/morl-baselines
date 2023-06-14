@@ -491,27 +491,19 @@ class PCNTNDP(MOAgent, MOPolicy):
                         ref_front=known_pareto_front,
                     )
                 
+                non_dominated_r = get_non_dominated_inds(e_returns)
                 # Only plot the pareto front as a scatter plot if there are two objectives
                 if e_returns.shape[1] == 2:
                     fig, ax = plt.subplots(figsize=(5, 5))
-                    ax.scatter(e_returns[:, 0], np.array(e_returns)[:, 1], alpha=0.5, label='policy-generated')
-                    ax.scatter(returns[:, 0], np.array(returns)[:, 1], marker='*', color='r', alpha=0.5, label='best in experience replay')
+                    ax.scatter(e_returns[:, 0], e_returns[:, 1], alpha=0.5, label='policy-generated')
+                    ax.scatter(returns[:, 0], returns[:, 1], marker='*', color='r', alpha=0.5, label='best in experience replay')
                     ax.set_xlim([0, 0.5])
                     ax.set_ylim([0, 0.5])
                     ax.set_xlabel("Objective 1")
                     ax.set_ylabel("Objective 2")
                     ax.set_title(f"Current Front {n_checkpoints}")
-                    fig.legend()
+                    fig.legend(loc='upper left')
                     fig.savefig(f"{save_dir}/Front_{n_checkpoints}.png")
-                    plt.close()
-
-                fig, ax = plt.subplots(figsize=(5, 5))
-                for i in range(len(e_states)):
-                    plot_grid = gen_line_plot_grid(np.array(e_states[i]), self.env.city.grid_x_size, self.env.city.grid_y_size)
-                    ax.imshow(plot_grid)
-                    highlight_cells([starting_loc], ax=ax, color='limegreen')
-                    fig.suptitle(f'Generated Line | Checkpoint {n_checkpoints} | Line {i}')
-                    fig.savefig(f'{save_dir}/Line_{n_checkpoints}_{i}.png')
                     plt.close()
 
                 n_checkpoints += 1
@@ -530,3 +522,14 @@ class PCNTNDP(MOAgent, MOPolicy):
 
             with open(f"{save_dir}/output.txt", 'w') as f:
                 f.write(json.dumps(output_log))
+
+            # Plot the generated lines of the final policies
+            fig, ax = plt.subplots(figsize=(5, 5))
+            for i in range(len(e_states)):
+                plot_grid = gen_line_plot_grid(np.array(e_states[i]), self.env.city.grid_x_size, self.env.city.grid_y_size)
+                ax.imshow(plot_grid)
+                highlight_cells([starting_loc], ax=ax, color='limegreen')
+                fig.suptitle(f'Generated Line | Checkpoint {n_checkpoints} | Line {i} | ND: {non_dominated_r[i]}')
+                ax.set_title(f'Reward {e_returns[i]} | Horizon {len(e_states[i])}')
+                fig.savefig(f'{save_dir}/Line_{n_checkpoints}_{i}.png')
+                plt.close()
