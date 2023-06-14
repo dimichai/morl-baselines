@@ -15,6 +15,7 @@ from morl_baselines.common.morl_algorithm import MOAgent, MOPolicy
 from morl_baselines.common.pareto import get_non_dominated_inds
 from morl_baselines.common.performance_indicators import hypervolume
 from morl_baselines.common.utils import log_all_multi_policy_metrics
+import json
 
 
 def crowding_distance(points):
@@ -302,6 +303,9 @@ class PCNTNDP(MOAgent, MOPolicy):
         return action
 
     def _run_episode(self, env, desired_return, desired_horizon, max_return, starting_loc=None):
+        if starting_loc is None:
+            print('NOTE: Experiment is running with random starting location.')
+            
         transitions = []
         state, info = env.reset(loc=starting_loc)
         states = [state['location']]
@@ -511,4 +515,18 @@ class PCNTNDP(MOAgent, MOPolicy):
                     plt.close()
 
                 n_checkpoints += 1
-                
+        if self.log:
+            output_log = {}
+            output_log['env'] = self.env.spec.id
+            
+            # Get the current-achieved best front.
+            # get best episodes, according to their crowding distance
+            episodes = self._nlargest(n_points)
+            returns, horizons = list(zip(*[(e[2][0].reward, len(e[2])) for e in episodes]))
+            # keep only non-dominated returns
+            nd_i = get_non_dominated_inds(np.array(returns))
+            output_log['best_front_r'] = np.array(returns)[nd_i].tolist()
+            output_log['best_front_h'] = np.array(horizons)[nd_i].tolist()
+
+            with open(f"{save_dir}/output.txt", 'w') as f:
+                f.write(json.dumps(output_log))
