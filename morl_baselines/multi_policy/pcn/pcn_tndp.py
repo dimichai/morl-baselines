@@ -400,7 +400,9 @@ class PCNTNDP(MOAgent, MOPolicy):
             starting_loc: starting location for episodes, if None, random location is used
         """
         if self.log:
-            self.register_additional_config({"ref_point": ref_point.tolist(), "known_front": known_pareto_front})
+            self.register_additional_config({"save_dir": save_dir, "ref_point": ref_point.tolist(), "known_front": known_pareto_front, 
+                                             "num_er_episodes": num_er_episodes, "num_step_episodes": num_step_episodes, 
+                                             "num_model_updates": num_model_updates, "starting_loc": starting_loc})
         self.global_step = 0
         total_episodes = num_er_episodes
         n_checkpoints = 0
