@@ -532,6 +532,6 @@ class PCNTNDP(MOAgent, MOPolicy):
                 ax.imshow(plot_grid)
                 highlight_cells([starting_loc], ax=ax, color='limegreen')
                 fig.suptitle(f'Generated Line | Checkpoint {n_checkpoints} | Line {i} | ND: {non_dominated_r[i]}')
-                ax.set_title(f'Reward {e_returns[i]} | Horizon {len(e_states[i])}')
+                ax.set_title(f'Reward {e_returns[i].round(3)} | Horizon {len(e_states[i])}')
                 fig.savefig(f'{save_dir}/Line_{n_checkpoints}_{i}.png')
                 plt.close()
