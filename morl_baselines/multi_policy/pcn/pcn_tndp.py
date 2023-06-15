@@ -303,9 +303,6 @@ class PCNTNDP(MOAgent, MOPolicy):
         return action
 
     def _run_episode(self, env, desired_return, desired_horizon, max_return, starting_loc=None):
-        if starting_loc is None:
-            print('NOTE: Experiment is running with random starting location.')
-            
         transitions = []
         state, info = env.reset(loc=starting_loc)
         states = [state['location']]
@@ -383,7 +380,8 @@ class PCNTNDP(MOAgent, MOPolicy):
         max_return: np.ndarray = 250.0,
         max_buffer_size: int = 500,
         starting_loc: Optional[np.ndarray] = None,
-        save_dir: str = "weights"
+        save_dir: str = "weights",
+        pf_plot_limits: Optional[List[int]] = [0, 0.5]
     ):
         """Train PCN.
 
@@ -398,6 +396,8 @@ class PCNTNDP(MOAgent, MOPolicy):
             max_return: maximum return for clipping desired return
             max_buffer_size: maximum buffer size
             starting_loc: starting location for episodes, if None, random location is used
+            save_dir: directory to save model weights
+            pf_plot_limits: limits for the pareto front plot (only for 2 objectives)
         """
         if self.log:
             self.register_additional_config({"save_dir": save_dir, "ref_point": ref_point.tolist(), "known_front": known_pareto_front, 
@@ -499,8 +499,8 @@ class PCNTNDP(MOAgent, MOPolicy):
                     fig, ax = plt.subplots(figsize=(5, 5))
                     ax.scatter(e_returns[:, 0], e_returns[:, 1], alpha=0.5, label='policy-generated')
                     ax.scatter(returns[:, 0], returns[:, 1], marker='*', color='r', alpha=0.5, label='best in experience replay')
-                    ax.set_xlim([0, 0.5])
-                    ax.set_ylim([0, 0.5])
+                    ax.set_xlim(pf_plot_limits)
+                    ax.set_ylim(pf_plot_limits)
                     ax.set_xlabel("Objective 1")
                     ax.set_ylabel("Objective 2")
                     ax.set_title(f"Current Front {n_checkpoints}")
@@ -526,12 +526,18 @@ class PCNTNDP(MOAgent, MOPolicy):
                 f.write(json.dumps(output_log))
 
             # Plot the generated lines of the final policies
-            fig, ax = plt.subplots(figsize=(5, 5))
             for i in range(len(e_states)):
+                fig, ax = plt.subplots(figsize=(5, 5))
                 plot_grid = gen_line_plot_grid(np.array(e_states[i]), self.env.city.grid_x_size, self.env.city.grid_y_size)
                 ax.imshow(plot_grid)
-                highlight_cells([starting_loc], ax=ax, color='limegreen')
+                highlight_cells([e_states[i][0]], ax=ax, color='limegreen')
                 fig.suptitle(f'Generated Line | Checkpoint {n_checkpoints} | Line {i} | ND: {non_dominated_r[i]}')
-                ax.set_title(f'Reward {e_returns[i].round(3)} | Horizon {len(e_states[i])}')
+                ax.set_title(f'Reward {e_returns[i].round(4)} | Horizon {len(e_states[i])}')
                 fig.savefig(f'{save_dir}/Line_{n_checkpoints}_{i}.png')
-                plt.close()
+                plt.close(fig)
+
+            if self.log:
+                self.close_wandb()
+        
+        self.env.close()
+        
