@@ -180,6 +180,7 @@ class PCNTNDP(MOAgent, MOPolicy):
         """Get configuration of PCN model."""
         return {
             "env_id": self.env.unwrapped.spec.id,
+            "reward_dim": self.reward_dim,
             "batch_size": self.batch_size,
             "gamma": self.gamma,
             "learning_rate": self.learning_rate,
@@ -381,7 +382,8 @@ class PCNTNDP(MOAgent, MOPolicy):
         max_buffer_size: int = 500,
         starting_loc: Optional[np.ndarray] = None,
         save_dir: str = "weights",
-        pf_plot_limits: Optional[List[int]] = [0, 0.5]
+        pf_plot_limits: Optional[List[int]] = [0, 0.5],
+        n_policies: int = 10,
     ):
         """Train PCN.
 
@@ -398,11 +400,12 @@ class PCNTNDP(MOAgent, MOPolicy):
             starting_loc: starting location for episodes, if None, random location is used
             save_dir: directory to save model weights
             pf_plot_limits: limits for the pareto front plot (only for 2 objectives)
+            n_policies: number of policies to evaluate at each checkpoint
         """
         if self.log:
             self.register_additional_config({"save_dir": save_dir, "ref_point": ref_point.tolist(), "known_front": known_pareto_front, 
                                              "num_er_episodes": num_er_episodes, "num_step_episodes": num_step_episodes, 
-                                             "num_model_updates": num_model_updates, "starting_loc": starting_loc})
+                                             "num_model_updates": num_model_updates, "starting_loc": starting_loc, "max_buffer_size": max_buffer_size})
         self.global_step = 0
         total_episodes = num_er_episodes
         n_checkpoints = 0
@@ -479,8 +482,7 @@ class PCNTNDP(MOAgent, MOPolicy):
 
             if self.global_step >= (n_checkpoints + 1) * total_timesteps / 100:
                 self.save(savedir=save_dir, filename=f"PCN_model_{n_checkpoints}")
-                n_points = 10
-                e_returns, returns, _, e_states = self.evaluate(eval_env, max_return, n=n_points, starting_loc=starting_loc)
+                e_returns, returns, _, e_states = self.evaluate(eval_env, max_return, n=n_policies, starting_loc=starting_loc)
                 # for i in states:
                 #     print(f'Line: {i}')
                 if self.log:
@@ -515,7 +517,7 @@ class PCNTNDP(MOAgent, MOPolicy):
             
             # Get the current-achieved best front.
             # get best episodes, according to their crowding distance
-            episodes = self._nlargest(n_points)
+            episodes = self._nlargest(n_policies)
             returns, horizons = list(zip(*[(e[2][0].reward, len(e[2])) for e in episodes]))
             # keep only non-dominated returns
             nd_i = get_non_dominated_inds(np.array(returns))
