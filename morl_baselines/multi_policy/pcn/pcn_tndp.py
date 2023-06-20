@@ -523,6 +523,7 @@ class PCNTNDP(MOAgent, MOPolicy):
             nd_i = get_non_dominated_inds(np.array(returns))
             output_log['best_front_r'] = np.array(returns)[nd_i].tolist()
             output_log['best_front_h'] = np.array(horizons)[nd_i].tolist()
+            output_log['starting_loc'] = starting_loc
 
             with open(f"{save_dir}/output.txt", 'w') as f:
                 f.write(json.dumps(output_log))
