@@ -10,6 +10,7 @@ import numpy as np
 import torch as th
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from morl_baselines.common.morl_algorithm import MOAgent, MOPolicy
 from morl_baselines.common.pareto import get_non_dominated_inds
@@ -171,6 +172,7 @@ class PCNTNDP(MOAgent, MOPolicy):
             self.observation_dim, self.action_dim, self.reward_dim, self.scaling_factor, hidden_dim=self.hidden_dim
         ).to(self.device)
         self.opt = th.optim.Adam(self.model.parameters(), lr=self.learning_rate)
+        # self.opt_scheduler = ReduceLROnPlateau(self.opt, mode='min', factor=0.5, patience=500)
 
         self.log = log
         if log:
@@ -220,6 +222,7 @@ class PCNTNDP(MOAgent, MOPolicy):
         l = l.mean()
         l.backward()
         self.opt.step()
+        # self.opt_scheduler.step(l)
 
         return l, probs
 
@@ -450,6 +453,7 @@ class PCNTNDP(MOAgent, MOPolicy):
                 self.writer.add_scalar("train/hypervolume", hv_est, self.global_step)
                 self.writer.add_scalar("train/loss", np.mean(loss), self.global_step)
                 self.writer.add_scalar("train/entropy", np.mean(entropy), self.global_step)
+                self.writer.add_scalar("train/lr", self.opt.param_groups[0]['lr'], self.global_step)
 
             returns = []
             horizons = []
