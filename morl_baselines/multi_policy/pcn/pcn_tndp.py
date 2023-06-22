@@ -386,8 +386,7 @@ class PCNTNDP(MOAgent, MOPolicy):
         starting_loc: Optional[np.ndarray] = None,
         save_dir: str = "weights",
         pf_plot_limits: Optional[List[int]] = [0, 0.5],
-        n_policies: int = 10,
-        seed: Optional[int] = None,
+        n_policies: int = 10
     ):
         """Train PCN.
 
@@ -409,8 +408,7 @@ class PCNTNDP(MOAgent, MOPolicy):
         if self.log:
             self.register_additional_config({"save_dir": save_dir, "ref_point": ref_point.tolist(), "known_front": known_pareto_front, 
                                              "num_er_episodes": num_er_episodes, "num_step_episodes": num_step_episodes, 
-                                             "num_model_updates": num_model_updates, "starting_loc": starting_loc, "max_buffer_size": max_buffer_size,
-                                             "seed": seed})
+                                             "num_model_updates": num_model_updates, "starting_loc": starting_loc, "max_buffer_size": max_buffer_size})
         self.global_step = 0
         total_episodes = num_er_episodes
         n_checkpoints = 0
