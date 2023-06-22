@@ -75,7 +75,7 @@ class Transition:
 class Model(nn.Module):
     """Model for the PCN."""
 
-    def __init__(self, state_dim: int, action_dim: int, reward_dim: int, scaling_factor: np.ndarray, hidden_dim: int = 64):
+    def __init__(self, state_dim: int, action_dim: int, reward_dim: int, scaling_factor: np.ndarray, nr_layers: int = 1, hidden_dim: int = 64):
         """Initialize the PCN model."""
         super().__init__()
         self.state_dim = state_dim
@@ -83,6 +83,7 @@ class Model(nn.Module):
         self.reward_dim = reward_dim
         self.scaling_factor = nn.Parameter(th.tensor(scaling_factor).float(), requires_grad=False)
         self.hidden_dim = hidden_dim
+        self.nr_layers = nr_layers
 
         self.s_emb = nn.Sequential(nn.Linear(self.state_dim, self.hidden_dim), nn.Sigmoid())
         self.c_emb = nn.Sequential(nn.Linear(self.reward_dim + 1, self.hidden_dim), nn.Sigmoid())
@@ -94,8 +95,10 @@ class Model(nn.Module):
         )
 
         self.fc2 = nn.Sequential(
-            nn.Linear(self.hidden_dim, self.hidden_dim),
-            nn.ReLU(),
+            *[
+                nn.Linear(self.hidden_dim, self.hidden_dim),
+                nn.ReLU(),
+            ] * self.nr_layers,
             nn.Linear(self.hidden_dim, self.action_dim),
         )
 
@@ -132,6 +135,7 @@ class PCNTNDP(MOAgent, MOPolicy):
         learning_rate: float = 1e-2,
         gamma: float = 1.0,
         batch_size: int = 32,
+        nr_layers: int = 1,
         hidden_dim: int = 64,
         project_name: str = "MORL-Baselines",
         experiment_name: str = "PCN",
@@ -148,6 +152,7 @@ class PCNTNDP(MOAgent, MOPolicy):
             learning_rate (float, optional): Learning rate. Defaults to 1e-2.
             gamma (float, optional): Discount factor. Defaults to 1.0.
             batch_size (int, optional): Batch size. Defaults to 32.
+            nr_layers (int, optional): Number of NN Linear layers. Defaults to 1.
             hidden_dim (int, optional): Hidden dimension. Defaults to 64.
             project_name (str, optional): Name of the project for wandb. Defaults to "MORL-Baselines".
             experiment_name (str, optional): Name of the experiment for wandb. Defaults to "PCN".
@@ -163,13 +168,14 @@ class PCNTNDP(MOAgent, MOPolicy):
         self.batch_size = batch_size
         self.gamma = gamma
         self.learning_rate = learning_rate
+        self.nr_layers = nr_layers
         self.hidden_dim = hidden_dim
         self.scaling_factor = scaling_factor
         self.desired_return = None
         self.desired_horizon = None
 
         self.model = Model(
-            self.observation_dim, self.action_dim, self.reward_dim, self.scaling_factor, hidden_dim=self.hidden_dim
+            self.observation_dim, self.action_dim, self.reward_dim, self.scaling_factor, nr_layers=self.nr_layers, hidden_dim=self.hidden_dim
         ).to(self.device)
         self.opt = th.optim.Adam(self.model.parameters(), lr=self.learning_rate)
         # self.opt_scheduler = ReduceLROnPlateau(self.opt, mode='min', factor=0.5, patience=500)
@@ -186,6 +192,7 @@ class PCNTNDP(MOAgent, MOPolicy):
             "batch_size": self.batch_size,
             "gamma": self.gamma,
             "learning_rate": self.learning_rate,
+            "nr_layers": self.nr_layers,
             "hidden_dim": self.hidden_dim,
             "scaling_factor": self.scaling_factor,
             "seed": self.seed,
@@ -384,6 +391,7 @@ class PCNTNDP(MOAgent, MOPolicy):
         max_return: np.ndarray = 250.0,
         max_buffer_size: int = 500,
         starting_loc: Optional[np.ndarray] = None,
+        nr_stations: int = 9,
         save_dir: str = "weights",
         pf_plot_limits: Optional[List[int]] = [0, 0.5],
         n_policies: int = 10
@@ -406,7 +414,7 @@ class PCNTNDP(MOAgent, MOPolicy):
             n_policies: number of policies to evaluate at each checkpoint
         """
         if self.log:
-            self.register_additional_config({"save_dir": save_dir, "ref_point": ref_point.tolist(), "known_front": known_pareto_front, 
+            self.register_additional_config({"save_dir": save_dir, "nr_stations": nr_stations, "ref_point": ref_point.tolist(), "known_front": known_pareto_front, 
                                              "num_er_episodes": num_er_episodes, "num_step_episodes": num_step_episodes, 
                                              "num_model_updates": num_model_updates, "starting_loc": starting_loc, "max_buffer_size": max_buffer_size})
         self.global_step = 0
@@ -434,6 +442,8 @@ class PCNTNDP(MOAgent, MOPolicy):
         while self.global_step < total_timesteps:
             loss = []
             entropy = []
+            if self.global_step >= 12000:
+                print('asdasd')
             for _ in range(num_model_updates):
                 l, lp = self.update()
                 loss.append(l.detach().cpu().numpy())
@@ -504,7 +514,7 @@ class PCNTNDP(MOAgent, MOPolicy):
                 if e_returns.shape[1] == 2:
                     fig, ax = plt.subplots(figsize=(5, 5))
                     ax.scatter(e_returns[:, 0], e_returns[:, 1], alpha=0.5, label='policy-generated')
-                    ax.scatter(returns[:, 0], returns[:, 1], marker='*', color='r', alpha=0.5, label='best in experience replay')
+                    ax.scatter(returns[:, 0], returns[:, 1], marker='*', color='r', alpha=0.5, label='best in ER')
                     ax.set_xlim(pf_plot_limits)
                     ax.set_ylim(pf_plot_limits)
                     ax.set_xlabel("Objective 1")
@@ -512,6 +522,22 @@ class PCNTNDP(MOAgent, MOPolicy):
                     ax.set_title(f"Current Front {n_checkpoints}")
                     fig.legend(loc='upper left')
                     fig.savefig(f"{save_dir}/Front_{n_checkpoints}.png")
+                    plt.close()
+
+                # Plot the whole experience replay -- this helps 
+                er_returns = np.array([e[2][0].reward for e in self.experience_replay])
+                er_distances = np.array([e[0] for e in self.experience_replay])
+                if e_returns.shape[1] == 2:
+                    fig, ax = plt.subplots(figsize=(5, 5))
+                    ax.scatter(er_returns[:, 0], er_returns[:, 1], c=er_distances, cmap='Blues', alpha=0.5)
+                    ax.scatter(returns[:, 0], returns[:, 1], marker='*', color='r', alpha=0.5, label='best in ER')
+                    ax.set_xlim(pf_plot_limits)
+                    ax.set_ylim(pf_plot_limits)
+                    ax.set_xlabel("Objective 1")
+                    ax.set_ylabel("Objective 2")
+                    ax.set_title(f"Current Experience Replay {n_checkpoints}")
+                    fig.legend(loc='upper left')
+                    fig.savefig(f"{save_dir}/ER_{n_checkpoints}.png")
                     plt.close()
 
                 n_checkpoints += 1
