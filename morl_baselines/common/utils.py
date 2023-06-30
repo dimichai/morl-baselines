@@ -253,6 +253,7 @@ def log_all_multi_policy_metrics(
     writer: SummaryWriter,
     n_sample_weights: int = 50,
     ref_front: Optional[List[np.ndarray]] = None,
+    greedy_front: List[np.ndarray] = None
 ):
     """Logs all metrics for multi-policy training.
 
@@ -272,8 +273,12 @@ def log_all_multi_policy_metrics(
         writer: wandb writer
         n_sample_weights: number of weights to sample for EUM and MUL computation
         ref_front: reference front, if known
+        greedy_front: front from taking greedy actions, if known
     """
     hv = hypervolume(hv_ref_point, current_front)
+    if greedy_front is not None:
+        greedy_hv = hypervolume(hv_ref_point, greedy_front)
+        writer.add_scalar("eval/greedy_hypervolume", greedy_hv, global_step=global_step)
     sp = sparsity(current_front)
     eum = expected_utility(current_front, weights_set=equally_spaced_weights(reward_dim, n_sample_weights))
 
