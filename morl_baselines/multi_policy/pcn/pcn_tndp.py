@@ -67,6 +67,7 @@ class Transition:
 
     observation: np.ndarray
     action: int
+    action_mask: np.ndarray
     reward: np.ndarray
     next_observation: np.ndarray
     terminal: bool
@@ -178,7 +179,7 @@ class PCNTNDP(MOAgent, MOPolicy):
             self.observation_dim, self.action_dim, self.reward_dim, self.scaling_factor, nr_layers=self.nr_layers, hidden_dim=self.hidden_dim
         ).to(self.device)
         self.opt = th.optim.Adam(self.model.parameters(), lr=self.learning_rate)
-        # self.opt_scheduler = ReduceLROnPlateau(self.opt, mode='min', factor=0.5, patience=500)
+        self.opt_scheduler = ReduceLROnPlateau(self.opt, mode='min', factor=0.5, patience=100)
 
         self.log = log
         if log:
@@ -204,16 +205,15 @@ class PCNTNDP(MOAgent, MOPolicy):
         # randomly choose episodes from experience buffer
         s_i = self.np_random.choice(np.arange(len(self.experience_replay)), size=self.batch_size, replace=True)
         for i in s_i:
-            # episode is tuple (return, transitions)
             ep = self.experience_replay[i][2]
             # choose random timestep from episode,
             # use it's return and leftover timesteps as desired return and horizon
             t = self.np_random.integers(0, len(ep))
             # reward contains return until end of episode
-            s_t, a_t, r_t, h_t = ep[t].observation, ep[t].action, np.float32(ep[t].reward), np.float32(len(ep) - t)
-            batch.append((s_t, a_t, r_t, h_t))
+            s_t, a_t, r_t, h_t, am_t = ep[t].observation, ep[t].action, np.float32(ep[t].reward), np.float32(len(ep) - t), ep[t].action_mask
+            batch.append((s_t, a_t, r_t, h_t, am_t))
 
-        obs, actions, desired_return, desired_horizon = zip(*batch)
+        obs, actions, desired_return, desired_horizon, _ = zip(*batch)
         probs = self.model(
             th.tensor(obs).to(self.device),
             th.tensor(desired_return).to(self.device),
@@ -229,7 +229,7 @@ class PCNTNDP(MOAgent, MOPolicy):
         l = l.mean()
         l.backward()
         self.opt.step()
-        # self.opt_scheduler.step(l)
+        self.opt_scheduler.step(l)
 
         return l, probs
 
@@ -297,7 +297,7 @@ class PCNTNDP(MOAgent, MOPolicy):
         desired_return = np.float32(desired_return)
         return desired_return, desired_horizon
 
-    def _act(self, obs: np.ndarray, desired_return, desired_horizon, action_mask) -> int:
+    def _act(self, obs: np.ndarray, desired_return, desired_horizon, action_mask, greedy=False) -> int:
         probs = self.model(
             th.tensor([obs]).float().to(self.device),
             th.tensor([desired_return]).float().to(self.device),
@@ -310,17 +310,20 @@ class PCNTNDP(MOAgent, MOPolicy):
         log_probs = th.nn.functional.log_softmax(probs + action_mask * 10000, dim=-1)
         log_probs = log_probs.detach().cpu().numpy()[0]
 
-        action = self.np_random.choice(np.arange(len(log_probs)), p=np.exp(log_probs))
+        if greedy:
+            action = np.argmax(log_probs)
+        else:
+            action = self.np_random.choice(np.arange(len(log_probs)), p=np.exp(log_probs))
         return action
 
-    def _run_episode(self, env, desired_return, desired_horizon, max_return, starting_loc=None):
+    def _run_episode(self, env, desired_return, desired_horizon, max_return, starting_loc=None, greedy=False):
         transitions = []
         state, info = env.reset(loc=starting_loc)
         states = [state['location']]
         obs = state['location_vector']
         done = False
         while not done:
-            action = self._act(obs, desired_return, desired_horizon, info['action_mask'])
+            action = self._act(obs, desired_return, desired_horizon, info['action_mask'], greedy=greedy)
             n_state, reward, terminated, truncated, info = env.step(action)
             states.append(n_state['location'])
             n_obs = n_state['location_vector']
@@ -330,6 +333,7 @@ class PCNTNDP(MOAgent, MOPolicy):
                 Transition(
                     observation=obs,
                     action=action,
+                    action_mask=info['action_mask'],
                     reward=np.float32(reward).copy(),
                     next_observation=n_obs,
                     terminal=terminated,
@@ -360,18 +364,24 @@ class PCNTNDP(MOAgent, MOPolicy):
         returns = np.float32(returns)
         horizons = np.float32(horizons)
         e_returns = []
+        greedy_returns = []
         transitions = []
         e_states = []
+        greedy_states = []
         for i in range(n):
-            transitions, states = self._run_episode(env, returns[i], np.float32(horizons[i] - 2), max_return, starting_loc=starting_loc)
+            transitions, states = self._run_episode(env, returns[i], np.float32(horizons[i] - 2), max_return, starting_loc=starting_loc, greedy=False)
+            greedy_transitions, g_states = self._run_episode(env, returns[i], np.float32(horizons[i] - 2), max_return, starting_loc=starting_loc, greedy=True)
             # compute return
             for i in reversed(range(len(transitions) - 1)):
                 transitions[i].reward += self.gamma * transitions[i + 1].reward
+                greedy_transitions[i].reward += self.gamma * greedy_transitions[i + 1].reward
             e_returns.append(transitions[0].reward)
+            greedy_returns.append(greedy_transitions[0].reward)
             e_states.append(states)
+            greedy_states.append(g_states)
 
         distances = np.linalg.norm(np.array(returns) - np.array(e_returns), axis=-1)
-        return np.array(e_returns), np.array(returns), distances, e_states
+        return np.array(e_returns), np.array(returns), distances, e_states, np.array(greedy_returns), greedy_states
 
     def save(self, filename: str = "PCN_model", savedir: str = "weights"):
         """Save PCN."""
@@ -432,7 +442,7 @@ class PCNTNDP(MOAgent, MOPolicy):
                 action = self.env.action_space.sample(mask=info['action_mask'])
                 n_obs, reward, terminated, truncated, info = self.env.step(action)
                 n_obs = n_obs['location_vector']
-                transitions.append(Transition(obs, action, np.float32(reward).copy(), n_obs, terminated))
+                transitions.append(Transition(obs, action, info['action_mask'], np.float32(reward).copy(), n_obs, terminated))
                 done = terminated or truncated
                 obs = n_obs
                 self.global_step += 1
@@ -442,8 +452,6 @@ class PCNTNDP(MOAgent, MOPolicy):
         while self.global_step < total_timesteps:
             loss = []
             entropy = []
-            if self.global_step >= 12000:
-                print('asdasd')
             for _ in range(num_model_updates):
                 l, lp = self.update()
                 loss.append(l.detach().cpu().numpy())
@@ -496,7 +504,7 @@ class PCNTNDP(MOAgent, MOPolicy):
 
             if self.global_step >= (n_checkpoints + 1) * total_timesteps / 100:
                 self.save(savedir=save_dir, filename=f"PCN_model_{n_checkpoints}")
-                e_returns, returns, _, e_states = self.evaluate(eval_env, max_return, n=n_policies, starting_loc=starting_loc)
+                e_returns, returns, _, e_states, g_returns, g_states = self.evaluate(eval_env, max_return, n=n_policies, starting_loc=starting_loc)
                 # for i in states:
                 #     print(f'Line: {i}')
                 if self.log:
@@ -507,14 +515,18 @@ class PCNTNDP(MOAgent, MOPolicy):
                         global_step=self.global_step,
                         writer=self.writer,
                         ref_front=known_pareto_front,
+                        greedy_front=g_returns,
                     )
                 
-                non_dominated_r = get_non_dominated_inds(e_returns)
+                non_dominated_er = get_non_dominated_inds(e_returns)
+                non_dominated_r = get_non_dominated_inds(returns)
                 # Only plot the pareto front as a scatter plot if there are two objectives
                 if e_returns.shape[1] == 2:
                     fig, ax = plt.subplots(figsize=(5, 5))
-                    ax.scatter(e_returns[:, 0], e_returns[:, 1], alpha=0.5, label='policy-generated')
+                    ax.scatter(e_returns[:, 0], e_returns[:, 1], alpha=0.5, label='exploratory-policy')
+                    ax.scatter(g_returns[:, 0], g_returns[:, 1], alpha=0.5, color='green', marker='s', label='greedy-policy')
                     ax.scatter(returns[:, 0], returns[:, 1], marker='*', color='r', alpha=0.5, label='best in ER')
+                    ax.scatter(returns[non_dominated_r, 0], returns[non_dominated_r, 1], marker='*', color='yellow', alpha=0.5, label='Non-dominated best in ER')
                     ax.set_xlim(pf_plot_limits)
                     ax.set_ylim(pf_plot_limits)
                     ax.set_xlabel("Objective 1")
@@ -564,7 +576,7 @@ class PCNTNDP(MOAgent, MOPolicy):
                 plot_grid = gen_line_plot_grid(np.array(e_states[i]), self.env.city.grid_x_size, self.env.city.grid_y_size)
                 ax.imshow(plot_grid)
                 highlight_cells([e_states[i][0]], ax=ax, color='limegreen')
-                fig.suptitle(f'Generated Line | Checkpoint {n_checkpoints} | Line {i} | ND: {non_dominated_r[i]}')
+                fig.suptitle(f'Generated Line | Checkpoint {n_checkpoints} | Line {i} | ND: {non_dominated_er[i]}')
                 ax.set_title(f'Reward {e_returns[i].round(4)} | Horizon {len(e_states[i])}')
                 fig.savefig(f'{save_dir}/Line_{n_checkpoints}_{i}.png')
                 plt.close(fig)
