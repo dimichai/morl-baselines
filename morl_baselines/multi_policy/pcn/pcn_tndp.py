@@ -374,6 +374,7 @@ class PCNTNDP(MOAgent, MOPolicy):
             # compute return
             for i in reversed(range(len(transitions) - 1)):
                 transitions[i].reward += self.gamma * transitions[i + 1].reward
+            for i in reversed(range(len(greedy_transitions) - 1)):
                 greedy_transitions[i].reward += self.gamma * greedy_transitions[i + 1].reward
             e_returns.append(transitions[0].reward)
             greedy_returns.append(greedy_transitions[0].reward)
