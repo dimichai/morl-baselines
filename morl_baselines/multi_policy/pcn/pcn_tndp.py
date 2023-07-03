@@ -199,11 +199,28 @@ class PCNTNDP(MOAgent, MOPolicy):
             "seed": self.seed,
         }
 
-    def update(self):
+    def update(self, g_returns=None):
         """Update PCN model."""
         batch = []
-        # randomly choose episodes from experience buffer
-        s_i = self.np_random.choice(np.arange(len(self.experience_replay)), size=self.batch_size, replace=True)
+
+        if self.train_mode == 'disttofront':
+            if g_returns is not None:
+                # choose episodes from experience buffer based on their distance to the global return
+                er_returns = np.array([e[2][0].reward for e in self.experience_replay])
+                
+                g_returns_exp = np.tile(np.expand_dims(g_returns, 1), (1, len(er_returns), 1))
+                l2 = np.linalg.norm(g_returns_exp - er_returns, axis=-1)
+                probs = th.nn.functional.softmax(th.tensor(l2), dim=-1)
+                probs = th.prod(probs, dim=0).numpy()
+                probs = probs / np.sum(probs)
+                s_i = self.np_random.choice(np.arange(len(self.experience_replay)), p=probs, size=self.batch_size, replace=True)
+            else:
+                # randomly choose episodes from experience buffer
+                s_i = self.np_random.choice(np.arange(len(self.experience_replay)), size=self.batch_size, replace=True)
+        else:
+            # randomly choose episodes from experience buffer
+            s_i = self.np_random.choice(np.arange(len(self.experience_replay)), size=self.batch_size, replace=True)
+
         for i in s_i:
             ep = self.experience_replay[i][2]
             # choose random timestep from episode,
@@ -405,7 +422,8 @@ class PCNTNDP(MOAgent, MOPolicy):
         nr_stations: int = 9,
         save_dir: str = "weights",
         pf_plot_limits: Optional[List[int]] = [0, 0.5],
-        n_policies: int = 10
+        n_policies: int = 10,
+        train_mode: str = "uniform",
     ):
         """Train PCN.
 
@@ -423,11 +441,13 @@ class PCNTNDP(MOAgent, MOPolicy):
             save_dir: directory to save model weights
             pf_plot_limits: limits for the pareto front plot (only for 2 objectives)
             n_policies: number of policies to evaluate at each checkpoint
+            train_mode: how to select experience replay episodes to train on, either "uniform" or "disttofront"
         """
         if self.log:
-            self.register_additional_config({"save_dir": save_dir, "nr_stations": nr_stations, "ref_point": ref_point.tolist(), "known_front": known_pareto_front, 
+            self.register_additional_config({"save_dir": save_dir, "nr_stations": nr_stations, "train_mode": train_mode, "ref_point": ref_point.tolist(), "known_front": known_pareto_front, 
                                              "num_er_episodes": num_er_episodes, "num_step_episodes": num_step_episodes, 
                                              "num_model_updates": num_model_updates, "starting_loc": starting_loc, "max_buffer_size": max_buffer_size})
+        self.train_mode = train_mode
         self.global_step = 0
         total_episodes = num_er_episodes
         n_checkpoints = 0
@@ -450,11 +470,13 @@ class PCNTNDP(MOAgent, MOPolicy):
             # add episode in-place
             self._add_episode(transitions, max_size=max_buffer_size, step=self.global_step)
 
+        g_returns = None
+        returns = None
         while self.global_step < total_timesteps:
             loss = []
             entropy = []
             for _ in range(num_model_updates):
-                l, lp = self.update()
+                l, lp = self.update(g_returns)
                 loss.append(l.detach().cpu().numpy())
                 lp = lp.detach().cpu().numpy()
                 ent = np.sum(-np.exp(lp) * lp)
