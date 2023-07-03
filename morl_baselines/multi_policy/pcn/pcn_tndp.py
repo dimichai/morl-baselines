@@ -179,7 +179,7 @@ class PCNTNDP(MOAgent, MOPolicy):
             self.observation_dim, self.action_dim, self.reward_dim, self.scaling_factor, nr_layers=self.nr_layers, hidden_dim=self.hidden_dim
         ).to(self.device)
         self.opt = th.optim.Adam(self.model.parameters(), lr=self.learning_rate)
-        self.opt_scheduler = ReduceLROnPlateau(self.opt, mode='min', factor=0.5, patience=100)
+        # self.opt_scheduler = ReduceLROnPlateau(self.opt, mode='min', factor=0.5, patience=100)
 
         self.log = log
         if log:
@@ -207,7 +207,6 @@ class PCNTNDP(MOAgent, MOPolicy):
             if g_returns is not None:
                 # choose episodes from experience buffer based on their distance to the global return
                 er_returns = np.array([e[2][0].reward for e in self.experience_replay])
-                
                 g_returns_exp = np.tile(np.expand_dims(g_returns, 1), (1, len(er_returns), 1))
                 l2 = np.linalg.norm(g_returns_exp - er_returns, axis=-1)
                 probs = th.nn.functional.softmax(th.tensor(l2), dim=-1)
@@ -246,7 +245,7 @@ class PCNTNDP(MOAgent, MOPolicy):
         l = l.mean()
         l.backward()
         self.opt.step()
-        self.opt_scheduler.step(l)
+        # self.opt_scheduler.step(l)
 
         return l, probs
 
@@ -414,6 +413,7 @@ class PCNTNDP(MOAgent, MOPolicy):
         ref_point: np.ndarray,
         known_pareto_front: Optional[List[np.ndarray]] = None,
         num_er_episodes: int = 500,
+        num_explore_episodes: int = None,
         num_step_episodes: int = 10,
         num_model_updates: int = 100,
         max_return: np.ndarray = 250.0,
@@ -432,7 +432,8 @@ class PCNTNDP(MOAgent, MOPolicy):
             eval_env: environment for evaluation
             ref_point: reference point for hypervolume calculation
             known_pareto_front: Optimal pareto front for metrics calculation, if known.
-            num_er_episodes: number of episodes to fill experience replay buffer
+            num_er_episodes: number of episodes to fill experience replay buffer.
+            num_explore_episodes: number of top n episodes to use to calculate the desired return when exploring. If None it will use all ER episodes.
             num_step_episodes: number of steps per episode
             num_model_updates: number of model updates per episode
             max_return: maximum return for clipping desired return
@@ -445,8 +446,8 @@ class PCNTNDP(MOAgent, MOPolicy):
         """
         if self.log:
             self.register_additional_config({"save_dir": save_dir, "nr_stations": nr_stations, "train_mode": train_mode, "ref_point": ref_point.tolist(), "known_front": known_pareto_front, 
-                                             "num_er_episodes": num_er_episodes, "num_step_episodes": num_step_episodes, 
-                                             "num_model_updates": num_model_updates, "starting_loc": starting_loc, "max_buffer_size": max_buffer_size})
+                                             "num_er_episodes": num_er_episodes, "num_explore_episodes": num_explore_episodes, "num_step_episodes": num_step_episodes, 
+                                             "num_model_updates": num_model_updates, "starting_loc": starting_loc, "max_buffer_size": max_buffer_size, "num_policies": n_policies})
         self.train_mode = train_mode
         self.global_step = 0
         total_episodes = num_er_episodes
@@ -482,7 +483,10 @@ class PCNTNDP(MOAgent, MOPolicy):
                 ent = np.sum(-np.exp(lp) * lp)
                 entropy.append(ent)
 
-            desired_return, desired_horizon = self._choose_commands(num_er_episodes)
+            if num_explore_episodes is None:
+                desired_return, desired_horizon = self._choose_commands(num_er_episodes)
+            else:
+                desired_return, desired_horizon = self._choose_commands(num_explore_episodes)
 
             # get all leaves, contain biggest elements, experience_replay got heapified in choose_commands
             leaves_r = np.array([e[2][0].reward for e in self.experience_replay[len(self.experience_replay) // 2 :]])
