@@ -494,8 +494,7 @@ class PCNTNDP(MOAgent, MOPolicy):
 
             if self.log:
                 hv = hypervolume(ref_point, leaves_r)
-                hv_est = hv
-                self.writer.add_scalar("train/hypervolume", hv_est, self.global_step)
+                self.writer.add_scalar("train/hypervolume", hv, self.global_step)
                 self.writer.add_scalar("train/loss", np.mean(loss), self.global_step)
                 self.writer.add_scalar("train/entropy", np.mean(entropy), self.global_step)
                 self.writer.add_scalar("train/lr", self.opt.param_groups[0]['lr'], self.global_step)
@@ -544,6 +543,14 @@ class PCNTNDP(MOAgent, MOPolicy):
                         ref_front=known_pareto_front,
                         greedy_front=g_returns,
                     )
+
+                    # Offline logger
+                    if not os.path.exists(save_dir / 'metrics.csv'):
+                        with open(save_dir / 'metrics.csv', 'w') as f:
+                            f.write('step,loss,entropy,train_hv,eval_hv,greedy_hv,lr\n')
+
+                    with open(save_dir / 'metrics.csv', 'a') as f:
+                        f.write(f"{self.global_step},{np.mean(loss)},{np.mean(entropy)},{hv},{hypervolume(ref_point, e_returns)},{hypervolume(ref_point, g_returns)},{self.opt.param_groups[0]['lr']}\n")
                 
                 non_dominated_er = get_non_dominated_inds(e_returns)
                 non_dominated_r = get_non_dominated_inds(returns)
