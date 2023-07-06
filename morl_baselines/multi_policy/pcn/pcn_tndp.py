@@ -216,6 +216,20 @@ class PCNTNDP(MOAgent, MOPolicy):
             else:
                 # randomly choose episodes from experience buffer
                 s_i = self.np_random.choice(np.arange(len(self.experience_replay)), size=self.batch_size, replace=True)
+        elif self.train_mode == 'disttofront2':
+            if g_returns is not None:
+                # choose episodes from experience buffer based on their distance to the global return
+                er_returns = np.array([e[2][0].reward for e in self.experience_replay])
+                g_returns_exp = np.tile(np.expand_dims(g_returns, 1), (1, len(er_returns), 1))
+                l2 = np.linalg.norm(g_returns_exp - er_returns, axis=-1)
+                l2 *= 2
+                probs = th.nn.functional.softmax(th.tensor(l2), dim=-1)
+                probs = th.prod(probs, dim=0).numpy()
+                probs = probs / np.sum(probs)
+                s_i = self.np_random.choice(np.arange(len(self.experience_replay)), p=probs, size=self.batch_size, replace=True)
+            else:
+                # randomly choose episodes from experience buffer
+                s_i = self.np_random.choice(np.arange(len(self.experience_replay)), size=self.batch_size, replace=True)
         else:
             # randomly choose episodes from experience buffer
             s_i = self.np_random.choice(np.arange(len(self.experience_replay)), size=self.batch_size, replace=True)
