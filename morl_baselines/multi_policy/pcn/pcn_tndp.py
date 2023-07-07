@@ -438,7 +438,7 @@ class PCNTNDP(MOAgent, MOPolicy):
         pf_plot_limits: Optional[List[int]] = [0, 0.5],
         n_policies: int = 10,
         train_mode: str = "uniform",
-        train_interval: int = None
+        update_interval: int = None
     ):
         """Train PCN.
 
@@ -458,7 +458,7 @@ class PCNTNDP(MOAgent, MOPolicy):
             pf_plot_limits: limits for the pareto front plot (only for 2 objectives)
             n_policies: number of policies to evaluate at each checkpoint
             train_mode: how to select experience replay episodes to train on, either "uniform" or "disttofront"
-            train_interval: interval at which to train the model (in steps), if None it will train at every step
+            update_interval: interval at which to update the model (in steps), if None it will train at every step
         """
         if self.log:
             self.register_additional_config({"save_dir": save_dir, "nr_stations": nr_stations, "train_mode": train_mode, "ref_point": ref_point.tolist(), "known_front": known_pareto_front, 
@@ -493,8 +493,8 @@ class PCNTNDP(MOAgent, MOPolicy):
         while self.global_step < total_timesteps:
             loss = []
             entropy = []
-            # Run only once every train_interval steps
-            if train_interval is None or self.global_step >= (n_train_checkpoints) * train_interval:   
+            # Run only once every update_interval steps
+            if update_interval is None or self.global_step >= (n_train_checkpoints) * update_interval:   
                 n_train_checkpoints += 1
 
                 for _ in range(num_model_updates):
