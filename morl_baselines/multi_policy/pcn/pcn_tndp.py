@@ -275,12 +275,12 @@ class PCNTNDP(MOAgent, MOPolicy):
         else:
             heapq.heappush(self.experience_replay, (1, step, transitions))
 
-    def _nlargest(self, n, threshold=0.2):
+    def _nlargest(self, n):
         """See Section 4.4 of https://arxiv.org/pdf/2204.05036.pdf for details."""
         returns = np.array([e[2][0].reward for e in self.experience_replay])
         # crowding distance of each point, check ones that are too close together
         distances = crowding_distance(returns)
-        sma = np.argwhere(distances <= threshold).flatten()
+        sma = np.argwhere(distances <= self.cd_threshold).flatten()
 
         non_dominated_i = get_non_dominated_inds(returns)
         non_dominated = returns[non_dominated_i]
@@ -289,7 +289,7 @@ class PCNTNDP(MOAgent, MOPolicy):
         returns_exp = np.tile(np.expand_dims(returns, 1), (1, len(non_dominated), 1))
         # distance to closest non_dominated point
         l2 = np.min(np.linalg.norm(returns_exp - non_dominated, axis=-1), axis=-1) * -1
-        # all points that are too close together (crowding distance < threshold) get a penalty
+        # all points that are too close together (crowding distance < cd_threshold) get a penalty
         non_dominated_i = np.nonzero(non_dominated_i)[0]
         _, unique_i = np.unique(non_dominated, axis=0, return_index=True)
         unique_i = non_dominated_i[unique_i]
@@ -438,7 +438,8 @@ class PCNTNDP(MOAgent, MOPolicy):
         pf_plot_limits: Optional[List[int]] = [0, 0.5],
         n_policies: int = 10,
         train_mode: str = "uniform",
-        update_interval: int = None
+        update_interval: int = None,
+        cd_threshold: float = 0.2
     ):
         """Train PCN.
 
@@ -459,6 +460,7 @@ class PCNTNDP(MOAgent, MOPolicy):
             n_policies: number of policies to evaluate at each checkpoint
             train_mode: how to select experience replay episodes to train on, either "uniform" or "disttofront"
             update_interval: interval at which to update the model (in steps), if None it will train at every step
+            cd_threshold: threshold for crowding distance
         """
         if self.log:
             self.register_additional_config({"save_dir": save_dir, "nr_stations": nr_stations, "train_mode": train_mode, "ref_point": ref_point.tolist(), "known_front": known_pareto_front, 
@@ -468,6 +470,7 @@ class PCNTNDP(MOAgent, MOPolicy):
         self.global_step = 0
         total_episodes = num_er_episodes
         n_checkpoints = 0
+        self.cd_threshold = cd_threshold
 
         # fill buffer with random episodes
         self.experience_replay = []
