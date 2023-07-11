@@ -337,7 +337,7 @@ class PCNTNDP(MOAgent, MOPolicy):
         probs = probs.detach()
 
         # Apply the mask before log_softmax -- we add a large large number to the unmasked actions (Linear can return negative values)
-        log_probs = th.nn.functional.log_softmax(probs + action_mask * 10000, dim=-1)
+        log_probs = th.nn.functional.log_softmax(probs.cpu() + action_mask * 10000, dim=-1)
         log_probs = log_probs.detach().cpu().numpy()[0]
 
         if greedy:
