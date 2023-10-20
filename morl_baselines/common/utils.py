@@ -180,6 +180,24 @@ def random_weights(
         return w[0]
     return w
 
+def gini(x, normalized=True):
+    """Compute the Gini index of a given numpy array.
+    TODO: make it work for all-dimensional arrays
+
+    Args:
+        x (np.array): array of values (e.g. rewards)
+        normalized (bool, optional): whether to normalize the Gini index. Defaults to True.
+
+    Returns:
+        float: Gini index
+    """
+    sorted_x = np.sort(x, axis=1)
+    n = x.shape[1]
+    cum_x = np.cumsum(sorted_x, axis=1, dtype=float)
+    gi = (n + 1 - 2 * np.sum(cum_x, axis=1) / cum_x[:, -1]) / n
+    if normalized:
+        gi = gi * (n / (n - 1))
+    return gi
 
 def log_episode_info(
     info: dict,
@@ -290,6 +308,18 @@ def log_all_multi_policy_metrics(
         data=[p.tolist() for p in current_front],
     )
     wandb.log({"eval/front": front}, step=global_step)
+    gi = gini(current_front, normalized=True)
+    utils_sum = current_front.sum(axis=1)
+    nash_welfare = current_front.prod(axis=1)
+    sen_welfare = utils_sum * (1 - gi)
+    wandb.log({"eval/gini_median": np.median(gi)}, step=global_step)
+    wandb.log({"eval/gini_min": np.min(gi)}, step=global_step)
+    wandb.log({"eval/efficiency_median": np.median(utils_sum)}, step=global_step)
+    wandb.log({"eval/efficiency_max": np.max(utils_sum)}, step=global_step)
+    wandb.log({"eval/sen_welfare_median": np.median(sen_welfare)}, step=global_step)
+    wandb.log({"eval/sen_welfare_max": np.max(sen_welfare)}, step=global_step)
+    wandb.log({"eval/nash_welfare_median": np.median(nash_welfare)}, step=global_step)
+    wandb.log({"eval/nash_welfare_max": np.max(nash_welfare)}, step=global_step)
 
     # If PF is known, log the additional metrics
     if ref_front is not None:
