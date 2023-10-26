@@ -152,6 +152,7 @@ class LCNTNDP(MOAgent, MOPolicy):
         batch_size: int = 32,
         nr_layers: int = 1,
         hidden_dim: int = 64,
+        distance_ref: str = 'nondominated',
         project_name: str = "MORL-Baselines",
         experiment_name: str = "LCN",
         wandb_entity: Optional[str] = None,
@@ -169,6 +170,7 @@ class LCNTNDP(MOAgent, MOPolicy):
             batch_size (int, optional): Batch size. Defaults to 32.
             nr_layers (int, optional): Number of NN Linear layers. Defaults to 1.
             hidden_dim (int, optional): Hidden dimension. Defaults to 64.
+            distance_ref (str, optional): Reference point for distance computation. Defaults to 'nondominated', other option is 'optimal'.
             project_name (str, optional): Name of the project for wandb. Defaults to "MORL-Baselines".
             experiment_name (str, optional): Name of the experiment for wandb. Defaults to "LCN".
             wandb_entity (Optional[str], optional): Entity for wandb. Defaults to None.
@@ -185,6 +187,7 @@ class LCNTNDP(MOAgent, MOPolicy):
         self.learning_rate = learning_rate
         self.nr_layers = nr_layers
         self.hidden_dim = hidden_dim
+        self.distance_ref = distance_ref
         self.scaling_factor = scaling_factor
         self.desired_return = None
         self.desired_horizon = None
@@ -296,30 +299,51 @@ class LCNTNDP(MOAgent, MOPolicy):
         distances = crowding_distance(returns)
         sma = np.argwhere(distances <= self.cd_threshold).flatten()
 
-        # non_dominated_i = get_non_dominated_inds(returns)
-        # non_dominated = returns[non_dominated_i]
+        if self.distance_ref == 'nondominated':
+            lv = lorenz_vector(np.array(returns))
+            non_dominated_i = get_non_dominated_inds(lv)
+            non_dominated = returns[non_dominated_i]
 
-        lv = lorenz_vector(np.array(returns))
-        non_dominated_i = get_non_dominated_inds(lv)
-        non_dominated = returns[non_dominated_i]
+            # we will compute distance of each point with each non-dominated point,
+            # duplicate each point with number of non_dominated to compute respective distance
+            returns_exp = np.tile(np.expand_dims(returns, 1), (1, len(non_dominated), 1))
+            # distance to closest non_dominated point
+            l2 = np.min(np.linalg.norm(returns_exp - non_dominated, axis=-1), axis=-1) * -1
 
-        # we will compute distance of each point with each non-dominated point,
-        # duplicate each point with number of non_dominated to compute respective distance
-        returns_exp = np.tile(np.expand_dims(returns, 1), (1, len(non_dominated), 1))
-        # distance to closest non_dominated point
-        l2 = np.min(np.linalg.norm(returns_exp - non_dominated, axis=-1), axis=-1) * -1
-        #### TODO RENAME to linf
-        # l2 = np.min(np.linalg.norm(returns_exp - non_dominated, axis=-1, ord=np.inf), axis=-1) * -1
-        ####
+            # all points that are too close together (crowding distance < cd_threshold) get a penalty
+            non_dominated_i = np.nonzero(non_dominated_i)[0]
+            _, unique_i = np.unique(non_dominated, axis=0, return_index=True)
+            unique_i = non_dominated_i[unique_i]
+            duplicates = np.ones(len(l2), dtype=bool)
+            duplicates[unique_i] = False
+            l2[duplicates] -= 1e-5
+            l2[sma] *= 2
+        if self.distance_ref == 'nondominated_mean':
+            lv = lorenz_vector(np.array(returns))
+            non_dominated_i = get_non_dominated_inds(lv)
+            non_dominated = returns[non_dominated_i]
 
-        # all points that are too close together (crowding distance < cd_threshold) get a penalty
-        non_dominated_i = np.nonzero(non_dominated_i)[0]
-        _, unique_i = np.unique(non_dominated, axis=0, return_index=True)
-        unique_i = non_dominated_i[unique_i]
-        duplicates = np.ones(len(l2), dtype=bool)
-        duplicates[unique_i] = False
-        l2[duplicates] -= 1e-5
-        l2[sma] *= 2
+            optimal = np.full_like(returns, non_dominated.mean(axis=0))
+            l2 = np.linalg.norm(returns - optimal, axis=-1) * -1
+
+            # all points that are too close together (crowding distance < cd_threshold) get a penalty
+            non_dominated_i = np.nonzero(non_dominated_i)[0]
+            _, unique_i = np.unique(non_dominated, axis=0, return_index=True)
+            unique_i = non_dominated_i[unique_i]
+            duplicates = np.ones(len(l2), dtype=bool)
+            duplicates[unique_i] = False
+            l2[duplicates] -= 1e-5
+            l2[sma] *= 2
+        elif self.distance_ref == 'optimal_max':
+            optimal = np.full_like(returns, returns[returns.sum(axis=1).argmax()].mean())
+            l2 = np.linalg.norm(returns - optimal, axis=-1) * -1
+
+            # all points that are too close together (crowding distance < cd_threshold) get a penalty
+            _, unique_i = np.unique(returns, axis=0, return_index=True)
+            duplicates = np.ones(len(l2), dtype=bool)
+            duplicates[unique_i] = False
+            l2[duplicates] -= 1e-5
+            l2[sma] *= 2
 
         sorted_i = np.argsort(l2)
         largest = [self.experience_replay[i] for i in sorted_i[-n:]]
@@ -494,7 +518,7 @@ class LCNTNDP(MOAgent, MOPolicy):
         if self.log:
             self.register_additional_config({"save_dir": save_dir, "nr_stations": nr_stations, "train_mode": train_mode, "ref_point": ref_point.tolist(), "known_front": known_pareto_front, 
                                              "num_er_episodes": num_er_episodes, "num_explore_episodes": num_explore_episodes, "num_step_episodes": num_step_episodes, 
-                                             "num_model_updates": num_model_updates, "starting_loc": starting_loc, "max_buffer_size": max_buffer_size, "num_policies": n_policies})
+                                             "num_model_updates": num_model_updates, "starting_loc": starting_loc, "max_buffer_size": max_buffer_size, "num_policies": n_policies, "distance_ref": self.distance_ref})
         self.train_mode = train_mode
         self.global_step = 0
         total_episodes = num_er_episodes
