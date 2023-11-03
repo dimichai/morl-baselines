@@ -14,7 +14,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from morl_baselines.common.morl_algorithm import MOAgent, MOPolicy
 from morl_baselines.common.pareto import get_non_dominated_inds
 from morl_baselines.common.performance_indicators import hypervolume
-from morl_baselines.common.utils import log_all_multi_policy_metrics
+from morl_baselines.common.utils import log_all_multi_policy_metrics, gini
 import json
 
 
@@ -153,6 +153,7 @@ class LCNTNDP(MOAgent, MOPolicy):
         nr_layers: int = 1,
         hidden_dim: int = 64,
         distance_ref: str = 'nondominated',
+        lcn_lambda: float = None,
         project_name: str = "MORL-Baselines",
         experiment_name: str = "LCN",
         wandb_entity: Optional[str] = None,
@@ -171,6 +172,7 @@ class LCNTNDP(MOAgent, MOPolicy):
             nr_layers (int, optional): Number of NN Linear layers. Defaults to 1.
             hidden_dim (int, optional): Hidden dimension. Defaults to 64.
             distance_ref (str, optional): Reference point for distance computation. Defaults to 'nondominated', other option is 'optimal'.
+            lcn_lambda (float, optional): Lambda parameter for the LCN model-Controls the size of the solution set to explore. Defaults to None.
             project_name (str, optional): Name of the project for wandb. Defaults to "MORL-Baselines".
             experiment_name (str, optional): Name of the experiment for wandb. Defaults to "LCN".
             wandb_entity (Optional[str], optional): Entity for wandb. Defaults to None.
@@ -188,6 +190,7 @@ class LCNTNDP(MOAgent, MOPolicy):
         self.nr_layers = nr_layers
         self.hidden_dim = hidden_dim
         self.distance_ref = distance_ref
+        self.lcn_lambda = lcn_lambda
         self.scaling_factor = scaling_factor
         self.desired_return = None
         self.desired_horizon = None
@@ -340,6 +343,29 @@ class LCNTNDP(MOAgent, MOPolicy):
 
             # all points that are too close together (crowding distance < cd_threshold) get a penalty
             _, unique_i = np.unique(returns, axis=0, return_index=True)
+            duplicates = np.ones(len(l2), dtype=bool)
+            duplicates[unique_i] = False
+            l2[duplicates] -= 1e-5
+            l2[sma] *= 2
+        elif self.distance_ref == 'interpolate':
+            non_dominated_i = get_non_dominated_inds(returns)
+            non_dominated = returns[non_dominated_i]
+
+            # Filter out the ND points whose gini is > lamda (or the min gini)
+            threshold = np.mean([gini(non_dominated, normalized=True).min(), self.lcn_lambda])
+            non_dominated_i  = gini(non_dominated, normalized=True) <= threshold
+            non_dominated = non_dominated[non_dominated_i]
+
+            # we will compute distance of each point with each non-dominated point,
+            # duplicate each point with number of non_dominated to compute respective distance
+            returns_exp = np.tile(np.expand_dims(returns, 1), (1, len(non_dominated), 1))
+            # distance to closest non_dominated point
+            l2 = np.min(np.linalg.norm(returns_exp - non_dominated, axis=-1), axis=-1) * -1
+
+            # all points that are too close together (crowding distance < cd_threshold) get a penalty
+            non_dominated_i = np.nonzero(non_dominated_i)[0]
+            _, unique_i = np.unique(non_dominated, axis=0, return_index=True)
+            unique_i = non_dominated_i[unique_i]
             duplicates = np.ones(len(l2), dtype=bool)
             duplicates[unique_i] = False
             l2[duplicates] -= 1e-5
@@ -518,7 +544,8 @@ class LCNTNDP(MOAgent, MOPolicy):
         if self.log:
             self.register_additional_config({"save_dir": save_dir, "nr_stations": nr_stations, "train_mode": train_mode, "ref_point": ref_point.tolist(), "known_front": known_pareto_front, 
                                              "num_er_episodes": num_er_episodes, "num_explore_episodes": num_explore_episodes, "num_step_episodes": num_step_episodes, 
-                                             "num_model_updates": num_model_updates, "starting_loc": starting_loc, "max_buffer_size": max_buffer_size, "num_policies": n_policies, "distance_ref": self.distance_ref})
+                                             "num_model_updates": num_model_updates, "starting_loc": starting_loc, "max_buffer_size": max_buffer_size, 
+                                             "num_policies": n_policies, "distance_ref": self.distance_ref, "lcn_lambda": self.lcn_lambda})
         self.train_mode = train_mode
         self.global_step = 0
         total_episodes = num_er_episodes
