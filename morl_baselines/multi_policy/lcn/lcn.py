@@ -348,12 +348,16 @@ class LCNTNDP(MOAgent, MOPolicy):
             l2[duplicates] -= 1e-5
             l2[sma] *= 2
         elif self.distance_ref == 'interpolate':
+            assert self.lcn_lambda is not None, "lcn_lambda must be set when using distance_ref='interpolate'"
             non_dominated_i = get_non_dominated_inds(returns)
             non_dominated = returns[non_dominated_i]
-
+            ginis = gini(non_dominated, normalized=True)
             # Filter out the ND points whose gini is > lamda (or the min gini)
-            threshold = np.min([gini(non_dominated, normalized=True).min(), self.lcn_lambda])
-            non_dominated_i  = gini(non_dominated, normalized=True) <= threshold
+            non_dominated_i = ginis <= self.lcn_lambda
+            # If no solution is left after filtering, take the ones with the lowest gini
+            if sum(non_dominated_i) == 0:
+                threshold = np.min(ginis)
+                non_dominated_i = ginis <= threshold
             non_dominated = non_dominated[non_dominated_i]
 
             # we will compute distance of each point with each non-dominated point,
