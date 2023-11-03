@@ -352,7 +352,7 @@ class LCNTNDP(MOAgent, MOPolicy):
             non_dominated = returns[non_dominated_i]
 
             # Filter out the ND points whose gini is > lamda (or the min gini)
-            threshold = np.mean([gini(non_dominated, normalized=True).min(), self.lcn_lambda])
+            threshold = np.min([gini(non_dominated, normalized=True).min(), self.lcn_lambda])
             non_dominated_i  = gini(non_dominated, normalized=True) <= threshold
             non_dominated = non_dominated[non_dominated_i]
 
