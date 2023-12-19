@@ -374,6 +374,30 @@ class LCNTNDP(MOAgent, MOPolicy):
             duplicates[unique_i] = False
             l2[duplicates] -= 1e-5
             l2[sma] *= 2
+        elif self.distance_ref == 'interpolate2':
+            assert self.lcn_lambda is not None, "lcn_lambda must be set when using distance_ref='interpolate2'"
+
+            lv = lorenz_vector(np.array(returns))
+            # The final vector is a weighted average of the lorenz vector and the full returns
+            fv = self.lcn_lambda * returns + (1 - self.lcn_lambda) * lv
+
+            non_dominated_i = get_non_dominated_inds(fv)
+            non_dominated = returns[non_dominated_i]
+
+            # we will compute distance of each point with each non-dominated point,
+            # duplicate each point with number of non_dominated to compute respective distance
+            returns_exp = np.tile(np.expand_dims(returns, 1), (1, len(non_dominated), 1))
+            # distance to closest non_dominated point
+            l2 = np.min(np.linalg.norm(returns_exp - non_dominated, axis=-1), axis=-1) * -1
+
+            # all points that are too close together (crowding distance < cd_threshold) get a penalty
+            non_dominated_i = np.nonzero(non_dominated_i)[0]
+            _, unique_i = np.unique(non_dominated, axis=0, return_index=True)
+            unique_i = non_dominated_i[unique_i]
+            duplicates = np.ones(len(l2), dtype=bool)
+            duplicates[unique_i] = False
+            l2[duplicates] -= 1e-5
+            l2[sma] *= 2
 
         sorted_i = np.argsort(l2)
         largest = [self.experience_replay[i] for i in sorted_i[-n:]]
