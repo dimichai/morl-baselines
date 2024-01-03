@@ -9,21 +9,24 @@ import torch as th
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+import wandb
 
 from morl_baselines.common.buffer import ReplayBuffer
-from morl_baselines.common.morl_algorithm import MOAgent, MOPolicy
-from morl_baselines.common.networks import NatureCNN, mlp
-from morl_baselines.common.prioritized_buffer import PrioritizedReplayBuffer
-from morl_baselines.common.utils import (
-    equally_spaced_weights,
-    get_grad_norm,
-    layer_init,
-    linearly_decaying_value,
+from morl_baselines.common.evaluation import (
     log_all_multi_policy_metrics,
     log_episode_info,
-    polyak_update,
-    random_weights,
 )
+from morl_baselines.common.morl_algorithm import MOAgent, MOPolicy
+from morl_baselines.common.networks import (
+    NatureCNN,
+    get_grad_norm,
+    layer_init,
+    mlp,
+    polyak_update,
+)
+from morl_baselines.common.prioritized_buffer import PrioritizedReplayBuffer
+from morl_baselines.common.utils import linearly_decaying_value
+from morl_baselines.common.weights import equally_spaced_weights, random_weights
 
 
 class QNet(nn.Module):
@@ -63,8 +66,10 @@ class QNet(nn.Module):
 
         """
         if self.feature_extractor is not None:
-            features = self.feature_extractor(obs / 255.0)
-            input = th.cat((features, w), dim=w.dim() - 1)
+            features = self.feature_extractor(obs)
+            if w.dim() == 1:
+                w = w.unsqueeze(0)
+            input = th.cat((features, w), dim=features.dim() - 1)
         else:
             input = th.cat((obs, w), dim=w.dim() - 1)
         q_values = self.net(input)
@@ -87,14 +92,14 @@ class Envelope(MOPolicy, MOAgent):
         final_epsilon: float = 0.01,
         epsilon_decay_steps: int = None,  # None == fixed epsilon
         tau: float = 1.0,
-        target_net_update_freq: int = 1000,  # ignored if tau != 1.0
+        target_net_update_freq: int = 200,  # ignored if tau != 1.0
         buffer_size: int = int(1e6),
-        net_arch: List = [256, 256],
+        net_arch: List = [256, 256, 256, 256],
         batch_size: int = 256,
         learning_starts: int = 100,
         gradient_updates: int = 1,
         gamma: float = 0.99,
-        max_grad_norm: Optional[float] = None,
+        max_grad_norm: Optional[float] = 1.0,
         envelope: bool = True,
         num_sample_w: int = 4,
         per: bool = True,
@@ -108,6 +113,7 @@ class Envelope(MOPolicy, MOAgent):
         log: bool = True,
         seed: Optional[int] = None,
         device: Union[th.device, str] = "auto",
+        group: Optional[str] = None,
     ):
         """Envelope Q-learning algorithm.
 
@@ -139,6 +145,7 @@ class Envelope(MOPolicy, MOAgent):
             log: Whether to log to wandb.
             seed: The seed for the random number generator.
             device: The device to use for training.
+            group: The wandb group to use for logging.
         """
         MOAgent.__init__(self, env, device=device, seed=seed)
         MOPolicy.__init__(self, device)
@@ -192,7 +199,7 @@ class Envelope(MOPolicy, MOAgent):
 
         self.log = log
         if log:
-            self.setup_wandb(project_name, experiment_name, wandb_entity)
+            self.setup_wandb(project_name, experiment_name, wandb_entity, group)
 
     @override
     def get_config(self):
@@ -200,7 +207,7 @@ class Envelope(MOPolicy, MOAgent):
             "env_id": self.env.unwrapped.spec.id,
             "learning_rate": self.learning_rate,
             "initial_epsilon": self.initial_epsilon,
-            "epsilon_decay_steps:": self.epsilon_decay_steps,
+            "epsilon_decay_steps": self.epsilon_decay_steps,
             "batch_size": self.batch_size,
             "tau": self.tau,
             "clip_grand_norm": self.max_grad_norm,
@@ -284,10 +291,10 @@ class Envelope(MOPolicy, MOAgent):
             )  # sample num_sample_w random weights
             w = sampled_w.repeat_interleave(b_obs.size(0), 0)  # repeat the weights for each sample
             b_obs, b_actions, b_rewards, b_next_obs, b_dones = (
-                b_obs.repeat(self.num_sample_w, 1),
+                b_obs.repeat(self.num_sample_w, *(1 for _ in range(b_obs.dim() - 1))),
                 b_actions.repeat(self.num_sample_w, 1),
                 b_rewards.repeat(self.num_sample_w, 1),
-                b_next_obs.repeat(self.num_sample_w, 1),
+                b_next_obs.repeat(self.num_sample_w, *(1 for _ in range(b_next_obs.dim() - 1))),
                 b_dones.repeat(self.num_sample_w, 1),
             )
 
@@ -316,10 +323,11 @@ class Envelope(MOPolicy, MOAgent):
             self.q_optim.zero_grad()
             critic_loss.backward()
             if self.log and self.global_step % 100 == 0:
-                self.writer.add_scalar(
-                    "losses/grad_norm",
-                    get_grad_norm(self.q_net.parameters()).item(),
-                    self.global_step,
+                wandb.log(
+                    {
+                        "losses/grad_norm": get_grad_norm(self.q_net.parameters()).item(),
+                        "global_step": self.global_step,
+                    },
                 )
             if self.max_grad_norm is not None:
                 th.nn.utils.clip_grad_norm_(self.q_net.parameters(), self.max_grad_norm)
@@ -355,9 +363,16 @@ class Envelope(MOPolicy, MOAgent):
             )
 
         if self.log and self.global_step % 100 == 0:
-            self.writer.add_scalar("losses/critic_loss", np.mean(critic_losses), self.global_step)
-            self.writer.add_scalar("metrics/epsilon", self.epsilon, self.global_step)
-            self.writer.add_scalar("metrics/homotopy_lambda", self.homotopy_lambda, self.global_step)
+            wandb.log(
+                {
+                    "losses/critic_loss": np.mean(critic_losses),
+                    "metrics/epsilon": self.epsilon,
+                    "metrics/homotopy_lambda": self.homotopy_lambda,
+                    "global_step": self.global_step,
+                },
+            )
+            if self.per:
+                wandb.log({"metrics/mean_priority": np.mean(priority)})
 
     @override
     def eval(self, obs: np.ndarray, w: np.ndarray) -> int:
@@ -406,10 +421,9 @@ class Envelope(MOPolicy, MOAgent):
         Returns: the envelope target.
         """
         # Repeat the weights for each sample
-        W = sampled_w.unsqueeze(0).repeat(obs.size(0), 1, 1)
+        W = sampled_w.repeat(obs.size(0), 1)
         # Repeat the observations for each sampled weight
-        next_obs = obs.unsqueeze(1).repeat(1, sampled_w.size(0), 1)
-
+        next_obs = obs.repeat_interleave(sampled_w.size(0), 0)
         # Batch size X Num sampled weights X Num actions X Num objectives
         next_q_values = self.q_net(next_obs, W).view(obs.size(0), sampled_w.size(0), self.action_dim, self.reward_dim)
         # Scalarized Q values for each sampled weight
@@ -469,6 +483,7 @@ class Envelope(MOPolicy, MOAgent):
         num_eval_weights_for_front: int = 100,
         num_eval_episodes_for_front: int = 5,
         reset_learning_starts: bool = False,
+        verbose: bool = False,
     ):
         """Train the agent.
 
@@ -484,11 +499,25 @@ class Envelope(MOPolicy, MOAgent):
             num_eval_weights_for_front: number of weights to sample for creating the pareto front when evaluating.
             num_eval_episodes_for_front: number of episodes to run when evaluating the policy.
             reset_learning_starts: whether to reset the learning starts. Useful when training multiple times.
+            verbose: whether to print the episode info.
         """
         if eval_env is not None:
             assert ref_point is not None, "Reference point must be provided for the hypervolume computation."
         if self.log:
-            self.register_additional_config({"ref_point": ref_point.tolist(), "known_front": known_pareto_front})
+            self.register_additional_config(
+                {
+                    "total_timesteps": total_timesteps,
+                    "ref_point": ref_point.tolist() if ref_point is not None else None,
+                    "known_front": known_pareto_front,
+                    "weight": weight.tolist() if weight is not None else None,
+                    "total_episodes": total_episodes,
+                    "reset_num_timesteps": reset_num_timesteps,
+                    "eval_freq": eval_freq,
+                    "num_eval_weights_for_front": num_eval_weights_for_front,
+                    "num_eval_episodes_for_front": num_eval_episodes_for_front,
+                    "reset_learning_starts": reset_learning_starts,
+                }
+            )
 
         self.global_step = 0 if reset_num_timesteps else self.global_step
         self.num_episodes = 0 if reset_num_timesteps else self.num_episodes
@@ -520,7 +549,7 @@ class Envelope(MOPolicy, MOAgent):
 
             if eval_env is not None and self.log and self.global_step % eval_freq == 0:
                 current_front = [
-                    self.policy_eval(eval_env, weights=ew, num_episodes=num_eval_episodes_for_front, writer=None)[3]
+                    self.policy_eval(eval_env, weights=ew, num_episodes=num_eval_episodes_for_front, log=self.log)[3]
                     for ew in eval_weights
                 ]
                 log_all_multi_policy_metrics(
@@ -528,7 +557,6 @@ class Envelope(MOPolicy, MOAgent):
                     hv_ref_point=ref_point,
                     reward_dim=self.reward_dim,
                     global_step=self.global_step,
-                    writer=self.writer,
                     ref_front=known_pareto_front,
                 )
 
@@ -538,7 +566,7 @@ class Envelope(MOPolicy, MOAgent):
                 self.num_episodes += 1
 
                 if self.log and "episode" in info.keys():
-                    log_episode_info(info["episode"], np.dot, w, self.global_step, writer=self.writer)
+                    log_episode_info(info["episode"], np.dot, w, self.global_step, verbose=verbose)
 
                 if weight is None:
                     w = random_weights(self.reward_dim, 1, dist="gaussian", rng=self.np_random)
