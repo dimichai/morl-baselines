@@ -119,3 +119,5 @@ class TabularModel:
             priority (float): new priority
         """
         self.priorities.set(ind, priority)
+        if ind > 0:
+            self.priorities.set(ind - 1, max(priority, self.priorities.get_priority(ind - 1)))
