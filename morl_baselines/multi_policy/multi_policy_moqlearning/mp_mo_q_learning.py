@@ -7,14 +7,13 @@ from typing_extensions import override
 import gymnasium as gym
 import numpy as np
 
-from morl_baselines.common.evaluation import policy_evaluation_mo
+from morl_baselines.common.evaluation import (
+    log_all_multi_policy_metrics,
+    policy_evaluation_mo,
+)
 from morl_baselines.common.morl_algorithm import MOAgent
 from morl_baselines.common.scalarization import weighted_sum
-from morl_baselines.common.utils import (
-    equally_spaced_weights,
-    log_all_multi_policy_metrics,
-    random_weights,
-)
+from morl_baselines.common.weights import equally_spaced_weights, random_weights
 from morl_baselines.multi_policy.linear_support.linear_support import LinearSupport
 from morl_baselines.single_policy.ser.mo_q_learning import MOQLearning
 
@@ -101,8 +100,6 @@ class MPMOQLearning(MOAgent):
 
         if self.log:
             self.setup_wandb(project_name=self.project_name, experiment_name=self.experiment_name, entity=wandb_entity)
-        else:
-            self.writer = None
 
     @override
     def get_config(self) -> dict:
@@ -181,7 +178,17 @@ class MPMOQLearning(MOAgent):
             eval_freq: The frequency of evaluation.
         """
         if self.log:
-            self.register_additional_config({"ref_point": ref_point.tolist(), "known_front": known_pareto_front})
+            self.register_additional_config(
+                {
+                    "total_timesteps": total_timesteps,
+                    "ref_point": ref_point.tolist(),
+                    "known_front": known_pareto_front,
+                    "timesteps_per_iteration": timesteps_per_iteration,
+                    "num_eval_weights_for_front": num_eval_weights_for_front,
+                    "num_eval_episodes_for_front": num_eval_episodes_for_front,
+                    "eval_freq": eval_freq,
+                }
+            )
         num_iterations = int(total_timesteps / timesteps_per_iteration)
         if eval_env is None:
             eval_env = deepcopy(self.env)
@@ -202,6 +209,10 @@ class MPMOQLearning(MOAgent):
             elif self.weight_selection_algo == "random":
                 w = random_weights(self.reward_dim, rng=self.np_random)
 
+            if len(self.policies) == 0 or not self.dyna:
+                model = None
+            else:
+                model = self.policies[-1].model  # shared model
             new_agent = MOQLearning(
                 env=self.env,
                 id=iter,
@@ -215,11 +226,10 @@ class MPMOQLearning(MOAgent):
                 use_gpi_policy=self.use_gpi_policy,
                 dyna=self.dyna,
                 dyna_updates=self.dyna_updates,
-                model=self.policies[-1].model if self.dyna else None,  # The model is shared between agents
+                model=model,
                 gpi_pd=self.gpi_pd,
                 parent=self,
                 log=self.log,
-                parent_writer=self.writer,
                 parent_rng=self.np_random,
                 seed=self.seed,
             )
@@ -257,9 +267,8 @@ class MPMOQLearning(MOAgent):
                     hv_ref_point=ref_point,
                     reward_dim=self.reward_dim,
                     global_step=self.global_step,
-                    writer=self.writer,
                     ref_front=known_pareto_front,
                 )
 
-        if self.writer is not None:
+        if self.log:
             self.close_wandb()
