@@ -7,13 +7,12 @@ import numpy as np
 import torch as th
 import torch.nn as nn
 import torch.optim as optim
-import wandb
 from torch.distributions import Categorical
 
 from morl_baselines.common.accrued_reward_buffer import AccruedRewardReplayBuffer
-from morl_baselines.common.evaluation import log_episode_info
 from morl_baselines.common.morl_algorithm import MOAgent, MOPolicy
-from morl_baselines.common.networks import layer_init, mlp
+from morl_baselines.common.networks import mlp
+from morl_baselines.common.utils import layer_init, log_episode_info
 
 
 class PolicyNet(nn.Module):
@@ -135,7 +134,7 @@ class EUPG(MOPolicy, MOAgent):
             rew_dim=self.reward_dim,
             action_dim=self.action_dim,
             net_arch=self.net_arch,
-        ).to(self.device)
+        )
         self.optimizer = optim.Adam(self.net.parameters(), lr=self.learning_rate)
 
         # Logging
@@ -184,12 +183,11 @@ class EUPG(MOPolicy, MOAgent):
         self.optimizer.step()
 
         if self.log:
-            wandb.log(
-                {
-                    "losses/loss": loss,
-                    "metrics/scalarized_episodic_return": scalarized_return,
-                    "global_step": self.global_step,
-                },
+            self.writer.add_scalar("losses/loss", loss, self.global_step)
+            self.writer.add_scalar(
+                "metrics/scalarized_episodic_return",
+                scalarized_return,
+                self.global_step,
             )
 
     def train(
@@ -222,11 +220,11 @@ class EUPG(MOPolicy, MOAgent):
             next_obs, vec_reward, terminated, truncated, info = self.env.step(action)
 
             # Memory update
-            self.buffer.add(obs, accrued_reward_tensor.cpu().numpy(), action, vec_reward, next_obs, terminated)
+            self.buffer.add(obs, accrued_reward_tensor, action, vec_reward, next_obs, terminated)
             accrued_reward_tensor += th.from_numpy(vec_reward).to(self.device)
 
             if eval_env is not None and self.log and self.global_step % eval_freq == 0:
-                self.policy_eval_esr(eval_env, scalarization=self.scalarization, log=self.log)
+                self.policy_eval_esr(eval_env, scalarization=self.scalarization, writer=self.writer)
 
             if terminated or truncated:
                 # NN is updated at the end of each episode
@@ -242,6 +240,7 @@ class EUPG(MOPolicy, MOAgent):
                         scalarization=self.scalarization,
                         weights=None,
                         global_timestep=self.global_step,
+                        writer=self.writer,
                     )
 
             else:

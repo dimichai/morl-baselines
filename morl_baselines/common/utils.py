@@ -1,8 +1,93 @@
 """General utils for the MORL baselines."""
 import os
-from typing import List
+import random
+from functools import lru_cache
+from typing import Iterable, List, Optional
 
 import numpy as np
+import torch as th
+import wandb
+from pymoo.util.ref_dirs import get_reference_directions
+from torch import nn
+from torch.utils.tensorboard import SummaryWriter
+
+from morl_baselines.common.performance_indicators import (
+    expected_utility,
+    hypervolume,
+    igd,
+    maximum_utility_loss,
+    sparsity,
+)
+
+
+@th.no_grad()
+def layer_init(layer, method="orthogonal", weight_gain: float = 1, bias_const: float = 0) -> None:
+    """Initialize a layer with the given method.
+
+    Args:
+        layer: The layer to initialize.
+        method: The initialization method to use.
+        weight_gain: The gain for the weights.
+        bias_const: The constant for the bias.
+    """
+    if isinstance(layer, (nn.Linear, nn.Conv2d)):
+        if method == "xavier":
+            th.nn.init.xavier_uniform_(layer.weight, gain=weight_gain)
+        elif method == "orthogonal":
+            th.nn.init.orthogonal_(layer.weight, gain=weight_gain)
+        th.nn.init.constant_(layer.bias, bias_const)
+
+
+@th.no_grad()
+def polyak_update(
+    params: Iterable[th.nn.Parameter],
+    target_params: Iterable[th.nn.Parameter],
+    tau: float,
+) -> None:
+    """Polyak averaging for target network parameters.
+
+    Args:
+        params: The parameters to update.
+        target_params: The target parameters.
+        tau: The polyak averaging coefficient (usually small).
+
+    """
+    for param, target_param in zip(params, target_params):
+        if tau == 1:
+            target_param.data.copy_(param.data)
+        else:
+            target_param.data.mul_(1.0 - tau)
+            th.add(target_param.data, param.data, alpha=tau, out=target_param.data)
+
+
+def get_grad_norm(params: Iterable[th.nn.Parameter]) -> th.Tensor:
+    """This is how the grad norm is computed inside torch.nn.clip_grad_norm_().
+
+    Args:
+        params: The parameters to compute the grad norm for.
+
+    Returns:
+        The grad norm.
+    """
+    parameters = [p for p in params if p.grad is not None]
+    if len(parameters) == 0:
+        return th.tensor(0.0)
+    device = parameters[0].grad.device
+    total_norm = th.norm(th.stack([th.norm(p.grad.detach(), 2.0).to(device) for p in parameters]), 2.0)
+    return total_norm
+
+
+def huber(x, min_priority=0.01):
+    """Huber loss function.
+
+    Args:
+        x: The input tensor.
+        min_priority: The minimum priority.
+
+    Returns:
+        The huber loss.
+    """
+    return th.where(x < min_priority, 0.5 * x.pow(2), min_priority * x).mean()
 
 
 def linearly_decaying_value(initial_value, decay_period, step, warmup_steps, final_value):
@@ -269,17 +354,19 @@ def make_gif(env, agent, weight: np.ndarray, fullpath: str, fps: int = 50, lengt
     print("Saved gif at: " + fullpath + ".gif")
 
 
-def reset_wandb_env():
-    """Reset the wandb environment variables.
+def seed_everything(seed: int):
+    """Set random seeds for reproducibility.
 
-    This is useful when running multiple sweeps in parallel, as wandb
-    will otherwise try to use the same directory for all the runs.
+    This function should be called only once per python process, preferably at the beginning of the main script.
+    It has global effects on the random state of the python process, so it should be used with care.
+
+    Args:
+        seed: random seed
     """
-    exclude = {
-        "WANDB_PROJECT",
-        "WANDB_ENTITY",
-        "WANDB_API_KEY",
-    }
-    for k, v in os.environ.items():
-        if k.startswith("WANDB_") and k not in exclude:
-            del os.environ[k]
+    random.seed(seed)
+    os.environ["PYTHONHASHSEED"] = str(seed)
+    np.random.seed(seed)
+    th.manual_seed(seed)
+    th.cuda.manual_seed(seed)
+    th.backends.cudnn.deterministic = True
+    th.backends.cudnn.benchmark = True

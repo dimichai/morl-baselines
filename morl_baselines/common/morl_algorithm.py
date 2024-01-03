@@ -9,6 +9,7 @@ import torch as th
 import wandb
 from gymnasium import spaces
 from mo_gymnasium.utils import MOSyncVectorEnv
+from torch.utils.tensorboard import SummaryWriter
 
 from morl_baselines.common.evaluation import (
     eval_mo_reward_conditioned,
@@ -56,6 +57,7 @@ class MOPolicy(ABC):
         scalarized_discounted_return,
         vec_return,
         discounted_vec_return,
+        writer: SummaryWriter,
     ):
         """Writes the data to wandb summary."""
         if self.id is None:
@@ -63,16 +65,18 @@ class MOPolicy(ABC):
         else:
             idstr = f"_{self.id}"
 
-        wandb.log(
-            {
-                f"eval{idstr}/scalarized_return": scalarized_return,
-                f"eval{idstr}/scalarized_discounted_return": scalarized_discounted_return,
-                "global_step": self.global_step,
-            }
+        writer.add_scalar(f"eval{idstr}/scalarized_return", scalarized_return, self.global_step)
+        writer.add_scalar(
+            f"eval{idstr}/scalarized_discounted_return",
+            scalarized_discounted_return,
+            self.global_step,
         )
         for i in range(vec_return.shape[0]):
-            wandb.log(
-                {f"eval{idstr}/vec_{i}": vec_return[i], f"eval{idstr}/discounted_vec_{i}": discounted_vec_return[i]},
+            writer.add_scalar(f"eval{idstr}/vec_{i}", vec_return[i], self.global_step)
+            writer.add_scalar(
+                f"eval{idstr}/discounted_vec_{i}",
+                discounted_vec_return[i],
+                self.global_step,
             )
 
     def policy_eval(
@@ -81,16 +85,16 @@ class MOPolicy(ABC):
         num_episodes: int = 5,
         scalarization=np.dot,
         weights: Optional[np.ndarray] = None,
-        log: bool = False,
+        writer: Optional[SummaryWriter] = None,
     ):
-        """Runs a policy evaluation (typically over a few episodes) on eval_env and logs some metrics if asked.
+        """Runs a policy evaluation (typically over a few episodes) on eval_env and logs some metrics using writer.
 
         Args:
             eval_env: evaluation environment
             num_episodes: number of episodes to evaluate
             scalarization: scalarization function
             weights: weights to use in the evaluation
-            log: whether to log the results
+            writer: wandb writer
 
         Returns:
              a tuple containing the average evaluations
@@ -102,12 +106,13 @@ class MOPolicy(ABC):
             discounted_vec_return,
         ) = policy_evaluation_mo(self, eval_env, w=weights, rep=num_episodes)
 
-        if log:
+        if writer is not None:
             self.__report(
                 scalarized_return,
                 scalarized_discounted_return,
                 vec_return,
                 discounted_vec_return,
+                writer,
             )
 
         return scalarized_return, scalarized_discounted_return, vec_return, discounted_vec_return
@@ -117,15 +122,15 @@ class MOPolicy(ABC):
         eval_env,
         scalarization,
         weights: Optional[np.ndarray] = None,
-        log: bool = False,
+        writer: Optional[SummaryWriter] = None,
     ):
-        """Runs a policy evaluation (typically on one episode) on eval_env and logs some metrics if asked.
+        """Runs a policy evaluation (typically on one episode) on eval_env and logs some metrics using writer.
 
         Args:
             eval_env: evaluation environment
             scalarization: scalarization function
             weights: weights to use in the evaluation
-            log: whether to log the results
+            writer: wandb writer
 
         Returns:
              a tuple containing the evaluations
@@ -137,12 +142,13 @@ class MOPolicy(ABC):
             discounted_vec_reward,
         ) = eval_mo_reward_conditioned(self, eval_env, scalarization, weights)
 
-        if log:
+        if writer is not None:
             self.__report(
                 scalarized_reward,
                 scalarized_discounted_reward,
                 vec_reward,
                 discounted_vec_reward,
+                writer,
             )
 
         return scalarized_reward, scalarized_discounted_reward, vec_reward, discounted_vec_reward
@@ -214,9 +220,7 @@ class MOAgent(ABC):
         for key, value in conf.items():
             wandb.config[key] = value
 
-    def setup_wandb(
-        self, project_name: str, experiment_name: str, entity: Optional[str] = None, group: Optional[str] = None
-    ) -> None:
+    def setup_wandb(self, project_name: str, experiment_name: str, entity: Optional[str] = None) -> None:
         """Initializes the wandb writer.
 
         Args:
@@ -243,8 +247,8 @@ class MOAgent(ABC):
             name=self.full_experiment_name,
             monitor_gym=True,
             save_code=True,
-            group=group,
         )
+        self.writer = SummaryWriter(f"/tmp/{self.experiment_name}")
         # The default "step" of wandb is not the actual time step (gloabl_step) of the MDP
         wandb.define_metric("*", step_metric="global_step")
 
@@ -252,4 +256,5 @@ class MOAgent(ABC):
         """Closes the wandb writer and finishes the run."""
         import wandb
 
+        self.writer.close()
         wandb.finish()

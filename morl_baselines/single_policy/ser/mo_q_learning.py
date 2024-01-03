@@ -5,13 +5,12 @@ from typing_extensions import override
 
 import gymnasium as gym
 import numpy as np
-import wandb
+from torch.utils.tensorboard import SummaryWriter
 
-from morl_baselines.common.evaluation import log_episode_info
 from morl_baselines.common.model_based.tabular_model import TabularModel
 from morl_baselines.common.morl_algorithm import MOAgent, MOPolicy
 from morl_baselines.common.scalarization import weighted_sum
-from morl_baselines.common.utils import linearly_decaying_value
+from morl_baselines.common.utils import linearly_decaying_value, log_episode_info
 
 
 class MOQLearning(MOPolicy, MOAgent):
@@ -46,6 +45,7 @@ class MOQLearning(MOPolicy, MOAgent):
         wandb_entity: Optional[str] = None,
         log: bool = True,
         seed: Optional[int] = None,
+        parent_writer: Optional[SummaryWriter] = None,
         parent_rng: Optional[np.random.Generator] = None,
     ):
         """Initializes the MOQ-learning algorithm.
@@ -74,6 +74,7 @@ class MOQLearning(MOPolicy, MOAgent):
             wandb_entity: The entity to use for logging.
             log: Whether to log or not.
             seed: The seed to use for the experiment.
+            parent_writer: The writer to use for logging. If None, a new writer is created.
             parent_rng: The random number generator to use. If None, a new one is created.
         """
         MOAgent.__init__(self, env)
@@ -115,7 +116,9 @@ class MOQLearning(MOPolicy, MOAgent):
             self.model = TabularModel(prioritize=self.gpi_pd) if self.dyna else None
 
         self.log = log
-        if self.log and parent_rng is None:
+        if parent_writer is not None:
+            self.writer = parent_writer
+        if self.log and parent_writer is None:
             self.setup_wandb(project_name, experiment_name, wandb_entity)
 
     def __act(self, obs: np.array) -> int:
@@ -142,10 +145,10 @@ class MOQLearning(MOPolicy, MOAgent):
         """
         priority = (
             np.dot(reward, weights)
-            + (1 - terminal) * self.gamma * self.parent.max_scalar_q_value(next_obs, weights)
+            + (1 - terminal) * self.gamma * self.parent.max_scalar_q_values(next_obs, weights)
             - np.dot(self.q_table[tuple(obs)][action], weights)
         )
-        priority = max(np.abs(priority), self.min_priority) ** self.alpha
+        priority = np.max(np.abs(priority), self.min_priority) ** self.alpha
         return priority
 
     @override
@@ -209,14 +212,13 @@ class MOQLearning(MOPolicy, MOAgent):
             )
 
         if self.log and self.global_step % 1000 == 0:
-            wandb.log(
-                {
-                    f"charts{self.idstr}/epsilon": self.epsilon,
-                    f"losses{self.idstr}/scalarized_td_error": self.scalarization(td_error, self.weights),
-                    f"losses{self.idstr}/mean_td_error": np.mean(td_error),
-                    "global_step": self.global_step,
-                },
+            self.writer.add_scalar(f"charts{self.idstr}/epsilon", self.epsilon, self.global_step)
+            self.writer.add_scalar(
+                f"losses{self.idstr}/scalarized_td_error",
+                self.scalarization(td_error, self.weights),
+                self.global_step,
             )
+            self.writer.add_scalar(f"losses{self.idstr}/mean_td_error", np.mean(td_error), self.global_step)
 
     @override
     def get_config(self) -> dict:
@@ -276,7 +278,7 @@ class MOQLearning(MOPolicy, MOAgent):
             self.update()
 
             if eval_env is not None and self.log and self.global_step % eval_freq == 0:
-                self.policy_eval(eval_env, scalarization=self.scalarization, weights=self.weights, log=self.log)
+                self.policy_eval(eval_env, scalarization=self.scalarization, weights=self.weights, writer=self.writer)
 
             if self.terminated or self.truncated:
                 self.obs, _ = self.env.reset()
@@ -284,11 +286,10 @@ class MOQLearning(MOPolicy, MOAgent):
                 self.num_episodes += 1
 
                 if self.log and self.global_step % 1000 == 0:
-                    wandb.log(
-                        {
-                            f"charts{self.idstr}/SPS": int(self.global_step / (time.time() - start_time)),
-                            "global_step": self.global_step,
-                        },
+                    self.writer.add_scalar(
+                        f"charts{self.idstr}/SPS",
+                        int(self.global_step / (time.time() - start_time)),
+                        self.global_step,
                     )
                     if "episode" in info:
                         log_episode_info(
@@ -297,6 +298,7 @@ class MOQLearning(MOPolicy, MOAgent):
                             self.weights,
                             self.global_step,
                             self.id,
+                            self.writer,
                             verbose=False,
                         )
             else:

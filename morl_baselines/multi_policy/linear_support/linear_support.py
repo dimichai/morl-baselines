@@ -12,7 +12,7 @@ from gymnasium.core import Env
 from morl_baselines.common.evaluation import policy_evaluation_mo
 from morl_baselines.common.morl_algorithm import MOPolicy
 from morl_baselines.common.performance_indicators import hypervolume
-from morl_baselines.common.weights import extrema_weights
+from morl_baselines.common.utils import extrema_weights
 
 
 np.set_printoptions(precision=4)
@@ -345,11 +345,7 @@ class LinearSupport:
         vertices = compute_poly_vertices(A, b)
         corners = []
         for v in vertices:
-            corner_weight = v[:-1]
-            # Make sure the corner weight is positive and sum to 1
-            corner_weight = np.abs(corner_weight)
-            corner_weight /= corner_weight.sum()
-            corners.append(corner_weight)
+            corners.append(v[:-1])
 
         return corners
 
