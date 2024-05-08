@@ -14,6 +14,7 @@ class ReplayBuffer:
         max_size=100000,
         obs_dtype=np.float32,
         action_dtype=np.float32,
+        action_mask_dim:np.int32 = None
     ):
         """Initialize the replay buffer.
 
@@ -24,16 +25,19 @@ class ReplayBuffer:
             max_size: Maximum size of the buffer
             obs_dtype: Data type of the observations
             action_dtype: Data type of the actions
+            action_mask_dim: Number of actions for the action mask
         """
         self.max_size = max_size
         self.ptr, self.size = 0, 0
         self.obs = np.zeros((max_size,) + obs_shape, dtype=obs_dtype)
         self.next_obs = np.zeros((max_size,) + obs_shape, dtype=obs_dtype)
         self.actions = np.zeros((max_size, action_dim), dtype=action_dtype)
+        if action_mask_dim is not None:
+            self.action_masks = np.zeros((max_size, action_mask_dim), dtype=np.int32)
         self.rewards = np.zeros((max_size, rew_dim), dtype=np.float32)
         self.dones = np.zeros((max_size, 1), dtype=np.float32)
 
-    def add(self, obs, action, reward, next_obs, done):
+    def add(self, obs, action, reward, next_obs, done, action_mask=None):
         """Add a new experience to the buffer.
 
         Args:
@@ -42,10 +46,16 @@ class ReplayBuffer:
             reward: Reward
             next_obs: Next observation
             done: Done
+            action_mask: Action mask
         """
         self.obs[self.ptr] = np.array(obs).copy()
         self.next_obs[self.ptr] = np.array(next_obs).copy()
         self.actions[self.ptr] = np.array(action).copy()
+        if action_mask is not None:
+            self.action_masks[self.ptr] = np.array(action_mask).copy()
+            self.return_action_mask = True
+        else:
+            self.return_action_mask = False
         self.rewards[self.ptr] = np.array(reward).copy()
         self.dones[self.ptr] = np.array(done).copy()
         self.ptr = (self.ptr + 1) % self.max_size
@@ -74,6 +84,7 @@ class ReplayBuffer:
             self.rewards[inds],
             self.next_obs[inds],
             self.dones[inds],
+            self.action_masks[inds] if self.return_action_mask else None
         )
         if to_tensor:
             return tuple(map(lambda x: th.tensor(x, device=device), experience_tuples))
@@ -117,6 +128,7 @@ class ReplayBuffer:
             self.rewards[inds],
             self.next_obs[inds],
             self.dones[inds],
+            self.action_masks[inds] if self.return_action_mask else None
         )
 
     def __len__(self):

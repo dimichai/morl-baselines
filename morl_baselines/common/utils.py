@@ -3,17 +3,23 @@ import math
 import os
 from typing import Callable, List
 
+import time
+from copy import deepcopy
+from typing import Iterator, Tuple, TypeVar
+
+import gymnasium as gym
 import numpy as np
 
 
-def linearly_decaying_value(initial_value, decay_period, step, warmup_steps, final_value):
-    """Returns the current value for a linearly decaying parameter.
+class MOSyncVectorEnv(SyncVectorEnv, EzPickle):
+    """Vectorized environment that serially runs multiple environments."""
 
-    This follows the Nature DQN schedule of a linearly decaying epsilon (Mnih et
-    al., 2015). The schedule is as follows:
-    Begin at 1. until warmup_steps steps have been taken; then
-    Linearly decay epsilon from 1. to epsilon in decay_period steps; and then
-    Use epsilon from there on.
+    def __init__(
+        self,
+        env_fns: Iterator[callable],
+        copy: bool = True,
+    ):
+        """Vectorized environment that serially runs multiple environments.
 
     Args:
         decay_period: float, the period over which the value is decayed.
