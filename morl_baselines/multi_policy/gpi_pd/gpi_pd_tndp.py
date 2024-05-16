@@ -202,7 +202,8 @@ class GPIPD(MOPolicy, MOAgent):
         self.num_nets = num_nets
         self.drop_rate = drop_rate
         self.layer_norm = layer_norm
-        # self.observation_shape = (env.city.grid_size, )
+        if env.observation_type == 'location_vector':
+            self.observation_shape = (env.city.grid_size, )
 
         # Q-Networks
         self.q_nets = [
@@ -560,7 +561,7 @@ class GPIPD(MOPolicy, MOAgent):
         q_values = self.q_nets[0](obs_m, M, action_mask)
 
         scalar_q_values = th.einsum("r,bar->ba", w, q_values)  # q(s,a,w_i) = q(s,a,w_i) . w
-        max_q, a = th.max(scalar_q_values - 10000 * (1-action_mask), dim=1)
+        max_q, a = th.max(scalar_q_values - 10000 * (1-th.tensor(action_mask).to(self.device)), dim=1)
         policy_index = th.argmax(max_q)  # max_i max_a q(s,a,w_i)
         action = a[policy_index].detach().item()
 
