@@ -887,6 +887,20 @@ class GPIPD(MOPolicy, MOAgent):
                         fig.savefig(f'./weights/Line_{iter}_{j}.png')
                         plt.close(fig)
                 
+                fig, ax = plt.subplots(figsize=(5, 5))
+                replay_buffer_cells = self.env.city.vector_to_grid(self.replay_buffer.get_all_data()[0])
+                total_replay_buffer_data = len(replay_buffer_cells)
+                # filter out the starting location from the plot so that it does not skew the results
+                replay_buffer_cells = replay_buffer_cells[~np.all(replay_buffer_cells == self.env.starting_loc, axis=1)]
+                total_non_starting_replay_buffer_data = len(replay_buffer_cells)
+                replay_buffer_plot = self.gen_line_plot_grid(replay_buffer_cells, self.env.city.grid_x_size, self.env.city.grid_y_size)
+                img = ax.imshow(replay_buffer_plot)
+                self.highlight_cells([self.env.starting_loc], ax=ax, color='orange')
+                fig.colorbar(img, ax=ax)
+                fig.suptitle(f'Iter {iter} | {total_replay_buffer_data} total data points | {total_non_starting_replay_buffer_data} non-starting data points')
+                fig.savefig(f'./weights/Replay_Buffer_{iter}.png')
+                plt.close(fig)
+                
                 log_all_multi_policy_metrics(
                     current_front=gpi_returns_test_tasks,
                     hv_ref_point=ref_point,
