@@ -13,12 +13,13 @@ import gymnasium as gym
 import mo_gymnasium as mo_gym
 import numpy as np
 import torch as th
+import wandb
 from scipy.optimize import least_squares
 
+from morl_baselines.common.evaluation import log_all_multi_policy_metrics
 from morl_baselines.common.morl_algorithm import MOAgent
 from morl_baselines.common.pareto import ParetoArchive
 from morl_baselines.common.performance_indicators import hypervolume, sparsity
-from morl_baselines.common.utils import log_all_multi_policy_metrics
 from morl_baselines.single_policy.ser.mo_ppo import MOPPO, MOPPONet, make_env
 
 
@@ -324,6 +325,7 @@ class PGMORL(MOAgent):
         gae: bool = True,
         gae_lambda: float = 0.95,
         device: Union[th.device, str] = "auto",
+        group: Optional[str] = None,
     ):
         """Initializes the PGMORL agent.
 
@@ -363,6 +365,7 @@ class PGMORL(MOAgent):
             gae: whether to use generalized advantage estimation
             gae_lambda: lambda parameter for GAE
             device: device on which the code should run
+            group: The wandb group to use for logging.
         """
         super().__init__(env, device=device, seed=seed)
         # Env dimensions
@@ -424,9 +427,7 @@ class PGMORL(MOAgent):
         # Logging
         self.log = log
         if self.log:
-            self.setup_wandb(project_name, experiment_name, wandb_entity)
-        else:
-            self.writer = None
+            self.setup_wandb(project_name, experiment_name, wandb_entity, group)
 
         self.networks = [
             MOPPONet(
@@ -447,7 +448,7 @@ class PGMORL(MOAgent):
                 self.networks[i],
                 weights[i],
                 self.env,
-                self.writer,
+                log=self.log,
                 gamma=self.gamma,
                 device=self.device,
                 seed=self.seed,
@@ -517,7 +518,7 @@ class PGMORL(MOAgent):
     ):
         """Evaluates all agents and store their current performances on the buffer and pareto archive."""
         for i, agent in enumerate(self.agents):
-            _, _, _, discounted_reward = agent.policy_eval(eval_env, weights=agent.np_weights, writer=self.writer)
+            _, _, _, discounted_reward = agent.policy_eval(eval_env, weights=agent.np_weights, log=self.log)
             # Storing current results
             self.population.add(agent, discounted_reward)
             self.archive.add(agent, discounted_reward)
@@ -537,7 +538,7 @@ class PGMORL(MOAgent):
                 hv_ref_point=ref_point,
                 reward_dim=self.reward_dim,
                 global_step=self.global_step,
-                writer=self.writer,
+                n_sample_weights=self.num_eval_weights_for_eval,
                 ref_front=known_pareto_front,
             )
 
@@ -617,10 +618,19 @@ class PGMORL(MOAgent):
         eval_env: gym.Env,
         ref_point: np.ndarray,
         known_pareto_front: Optional[List[np.ndarray]] = None,
+        num_eval_weights_for_eval: int = 50,
     ):
         """Trains the agents."""
         if self.log:
-            self.register_additional_config({"ref_point": ref_point.tolist(), "known_front": known_pareto_front})
+            self.register_additional_config(
+                {
+                    "total_timesteps": total_timesteps,
+                    "ref_point": ref_point.tolist(),
+                    "known_front": known_pareto_front,
+                    "num_eval_weights_for_eval": num_eval_weights_for_eval,
+                }
+            )
+        self.num_eval_weights_for_eval = num_eval_weights_for_eval
         max_iterations = total_timesteps // self.steps_per_iteration // self.num_envs
         iteration = 0
         # Init
@@ -638,7 +648,7 @@ class PGMORL(MOAgent):
         for i in range(1, self.warmup_iterations + 1):
             print(f"Warmup iteration #{iteration}")
             if self.log:
-                self.writer.add_scalar("charts/warmup_iterations", i)
+                wandb.log({"charts/warmup_iterations": i, "global_step": self.global_step})
             self.__train_all_agents(iteration=iteration, max_iterations=max_iterations)
             iteration += 1
         self.__eval_all_agents(
@@ -656,15 +666,19 @@ class PGMORL(MOAgent):
             self.__task_weight_selection(ref_point=ref_point)
             print(f"Evolutionary generation #{evolutionary_generation}")
             if self.log:
-                self.writer.add_scalar("charts/evolutionary_generation", evolutionary_generation)
+                wandb.log(
+                    {"charts/evolutionary_generation": evolutionary_generation, "global_step": self.global_step},
+                )
 
             for _ in range(self.evolutionary_iterations):
                 # Run training of every agent for evolutionary iterations.
                 if self.log:
                     print(f"Evolutionary iteration #{iteration - self.warmup_iterations}")
-                    self.writer.add_scalar(
-                        "charts/evolutionary_iterations",
-                        iteration - self.warmup_iterations,
+                    wandb.log(
+                        {
+                            "charts/evolutionary_iterations": iteration - self.warmup_iterations,
+                            "global_step": self.global_step,
+                        },
                     )
                 self.__train_all_agents(iteration=iteration, max_iterations=max_iterations)
                 iteration += 1

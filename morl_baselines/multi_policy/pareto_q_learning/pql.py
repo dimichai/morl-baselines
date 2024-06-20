@@ -1,16 +1,16 @@
 """Pareto Q-Learning."""
+import numbers
 from typing import Callable, List, Optional
 
 import gymnasium as gym
 import numpy as np
+import wandb
 
+from morl_baselines.common.evaluation import log_all_multi_policy_metrics
 from morl_baselines.common.morl_algorithm import MOAgent
 from morl_baselines.common.pareto import get_non_dominated
 from morl_baselines.common.performance_indicators import hypervolume
-from morl_baselines.common.utils import (
-    linearly_decaying_value,
-    log_all_multi_policy_metrics,
-)
+from morl_baselines.common.utils import linearly_decaying_value
 
 
 class PQL(MOAgent):
@@ -60,10 +60,28 @@ class PQL(MOAgent):
         # Algorithm setup
         self.ref_point = ref_point
 
-        self.num_actions = self.env.action_space.n
-        low_bound = self.env.observation_space.low
-        high_bound = self.env.observation_space.high
-        self.env_shape = (high_bound[0] - low_bound[0] + 1, high_bound[1] - low_bound[1] + 1)
+        if type(self.env.action_space) == gym.spaces.Discrete:
+            self.num_actions = self.env.action_space.n
+        elif type(self.env.action_space) == gym.spaces.MultiDiscrete:
+            self.num_actions = np.prod(self.env.action_space.nvec)
+        else:
+            raise Exception("PQL only supports (multi)discrete action spaces.")
+
+        if type(self.env.observation_space) == gym.spaces.Discrete:
+            self.env_shape = (self.env.observation_space.n,)
+        elif type(self.env.observation_space) == gym.spaces.MultiDiscrete:
+            self.env_shape = self.env.observation_space.nvec
+        elif (
+            type(self.env.observation_space) == gym.spaces.Box
+            and self.env.observation_space.is_bounded(manner="both")
+            and issubclass(self.env.observation_space.dtype.type, numbers.Integral)
+        ):
+            low_bound = np.array(self.env.observation_space.low)
+            high_bound = np.array(self.env.observation_space.high)
+            self.env_shape = high_bound - low_bound + 1
+        else:
+            raise Exception("PQL only supports discretizable observation spaces.")
+
         self.num_states = np.prod(self.env_shape)
         self.num_objectives = self.env.reward_space.shape[0]
         self.counts = np.zeros((self.num_states, self.num_actions))
@@ -179,6 +197,7 @@ class PQL(MOAgent):
         eval_env: gym.Env,
         ref_point: Optional[np.ndarray] = None,
         known_pareto_front: Optional[List[np.ndarray]] = None,
+        num_eval_weights_for_eval: int = 50,
         log_every: Optional[int] = 10000,
         action_eval: Optional[str] = "hypervolume",
     ):
@@ -189,6 +208,7 @@ class PQL(MOAgent):
             eval_env (gym.Env): The environment to evaluate the policies on.
             eval_ref_point (ndarray, optional): The reference point for the hypervolume metric during evaluation. If none, use the same ref point as training.
             known_pareto_front (List[ndarray], optional): The optimal Pareto front, if known.
+            num_eval_weights_for_eval (int): Number of weights use when evaluating the Pareto front, e.g., for computing expected utility.
             log_every (int, optional): Log the results every number of timesteps. (Default value = 1000)
             action_eval (str, optional): The action evaluation function name. (Default value = 'hypervolume')
 
@@ -204,7 +224,16 @@ class PQL(MOAgent):
         if ref_point is None:
             ref_point = self.ref_point
         if self.log:
-            self.register_additional_config({"ref_point": ref_point.tolist(), "known_front": known_pareto_front})
+            self.register_additional_config(
+                {
+                    "total_timesteps": total_timesteps,
+                    "ref_point": ref_point.tolist(),
+                    "known_front": known_pareto_front,
+                    "num_eval_weights_for_eval": num_eval_weights_for_eval,
+                    "log_every": log_every,
+                    "action_eval": action_eval,
+                }
+            )
 
         while self.global_step < total_timesteps:
             state, _ = self.env.reset()
@@ -224,14 +253,14 @@ class PQL(MOAgent):
                 state = next_state
 
                 if self.log and self.global_step % log_every == 0:
-                    self.writer.add_scalar("global_step", self.global_step, self.global_step)
+                    wandb.log({"global_step": self.global_step})
                     pf = self._eval_all_policies(eval_env)
                     log_all_multi_policy_metrics(
                         current_front=pf,
                         hv_ref_point=ref_point,
                         reward_dim=self.reward_dim,
                         global_step=self.global_step,
-                        writer=self.writer,
+                        n_sample_weights=num_eval_weights_for_eval,
                         ref_front=known_pareto_front,
                     )
 
