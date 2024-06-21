@@ -3,10 +3,10 @@
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
     <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
-<link rel="index" title="Index" href="../../../genindex/" /><link rel="search" title="Search" href="../../../search/" /><link rel="next" title="Single-policy Algorithms" href="../../single_policy/" /><link rel="prev" title="Pareto Q-Learning" href="../pareto_q_learning/" />
+<link rel="index" title="Index" href="../../../genindex/" /><link rel="search" title="Search" href="../../../search/" /><link rel="next" title="PGMORL" href="../pgmorl/" /><link rel="prev" title="Envelope Q-Learning" href="../envelope/" />
 
     <!-- Generated with Sphinx 7.3.7 and Furo 2024.05.06 -->
-        <title>MPMOQ Learning - MORL-Baselines 1.0.0 documentation</title>
+        <title>Concave-Augmented Pareto Q-Learning (CAPQL) - MORL-Baselines 1.0.0 documentation</title>
       <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=a746c00c" />
     <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo.css?v=387cc868" />
     <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo-extensions.css?v=36a5483c" />
@@ -221,12 +221,12 @@
 <li class="toctree-l1 current has-children"><a class="reference internal" href="../">Multi-Policy Algorithms</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle navigation of Multi-Policy Algorithms</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="../gpi_pd/">GPI-Prioritized Dyna</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../envelope/">Envelope Q-Learning</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../capql/">Concave-Augmented Pareto Q-Learning (CAPQL)</a></li>
+<li class="toctree-l2 current current-page"><a class="current reference internal" href="#">Concave-Augmented Pareto Q-Learning (CAPQL)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../pgmorl/">PGMORL</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../morld/">MORL/D</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../pcn/">Pareto Conditioned Networks</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../pareto_q_learning/">Pareto Q-Learning</a></li>
-<li class="toctree-l2 current current-page"><a class="current reference internal" href="#">MPMOQ Learning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../mp_mo_q_learning/">MPMOQ Learning</a></li>
 </ul>
 </li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../single_policy/">Single-policy Algorithms</a><input class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><div class="visually-hidden">Toggle navigation of Single-policy Algorithms</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
@@ -272,12 +272,12 @@
         </a>
         <div class="content-icon-container">
           <div class="view-this-page">
-  <a class="muted-link" href="https://github.com/LucasAlegre/morl-baselines/blob/main/docs/algos/multi_policy/mp_mo_q_learning.md?plain=true" title="View this page">
+  <a class="muted-link" href="https://github.com/LucasAlegre/morl-baselines/blob/main/docs/algos/multi_policy/capql.md?plain=true" title="View this page">
     <svg><use href="#svg-eye"></use></svg>
     <span class="visually-hidden">View this page</span>
   </a>
 </div><div class="edit-this-page">
-  <a class="muted-link" href="https://github.com/LucasAlegre/morl-baselines/edit/main/docs/algos/multi_policy/mp_mo_q_learning.md" title="Edit this page">
+  <a class="muted-link" href="https://github.com/LucasAlegre/morl-baselines/edit/main/docs/algos/multi_policy/capql.md" title="Edit this page">
     <svg><use href="#svg-pencil"></use></svg>
     <span class="visually-hidden">Edit this page</span>
   </a>
@@ -296,8 +296,8 @@
           </label>
         </div>
         <article role="main" id="furo-main-content">
-          <section id="mpmoq-learning">
-<h1>MPMOQ Learning<a class="headerlink" href="#mpmoq-learning" title="Link to this heading">¶</a></h1>
+          <section id="concave-augmented-pareto-q-learning-capql">
+<h1>Concave-Augmented Pareto Q-Learning (CAPQL)<a class="headerlink" href="#concave-augmented-pareto-q-learning-capql" title="Link to this heading">¶</a></h1>
 </section>
 
         </article>
@@ -305,23 +305,23 @@
       <footer>
         
         <div class="related-pages">
-          <a class="next-page" href="../../single_policy/">
+          <a class="next-page" href="../pgmorl/">
               <div class="page-info">
                 <div class="context">
                   <span>Next</span>
                 </div>
-                <div class="title">Single-policy Algorithms</div>
+                <div class="title">PGMORL</div>
               </div>
               <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
             </a>
-          <a class="prev-page" href="../pareto_q_learning/">
+          <a class="prev-page" href="../envelope/">
               <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
               <div class="page-info">
                 <div class="context">
                   <span>Previous</span>
                 </div>
                 
-                <div class="title">Pareto Q-Learning</div>
+                <div class="title">Envelope Q-Learning</div>
                 
               </div>
             </a>
