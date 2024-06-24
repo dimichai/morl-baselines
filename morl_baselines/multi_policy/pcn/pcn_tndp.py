@@ -418,7 +418,6 @@ class PCNTNDP(MOAgent, MOPolicy):
         known_pareto_front: Optional[List[np.ndarray]] = None,
         num_eval_weights_for_eval: int = 50,
         num_er_episodes: int = 500,
-        num_explore_episodes: int = None,
         num_step_episodes: int = 10,
         num_model_updates: int = 100,
         max_return: np.ndarray = 250.0,
@@ -440,7 +439,6 @@ class PCNTNDP(MOAgent, MOPolicy):
             known_pareto_front: Optimal pareto front for metrics calculation, if known.
             num_eval_weights_for_eval (int): Number of weights use when evaluating the Pareto front, e.g., for computing expected utility.
             num_er_episodes: number of episodes to fill experience replay buffer.
-            num_explore_episodes: number of top n episodes to use to calculate the desired return when exploring. If None it will use all ER episodes.
             num_step_episodes: number of steps per episode
             num_model_updates: number of model updates per episode
             max_return: maximum return for clipping desired return
@@ -463,7 +461,6 @@ class PCNTNDP(MOAgent, MOPolicy):
                     "num_er_episodes": num_er_episodes, 
                     "num_step_episodes": num_step_episodes, 
                     "num_model_updates": num_model_updates, 
-                    "num_explore_episodes": num_explore_episodes, 
                     "starting_loc": starting_loc, 
                     "max_buffer_size": max_buffer_size, 
                     "num_policies": n_policies,
@@ -508,10 +505,7 @@ class PCNTNDP(MOAgent, MOPolicy):
                     ent = np.sum(-np.exp(lp) * lp)
                     entropy.append(ent)
 
-            if num_explore_episodes is None:
-                desired_return, desired_horizon = self._choose_commands(num_er_episodes)
-            else:
-                desired_return, desired_horizon = self._choose_commands(num_explore_episodes)
+            desired_return, desired_horizon = self._choose_commands(num_er_episodes)
 
             # get all leaves, contain biggest elements, experience_replay got heapified in choose_commands
             leaves_r = np.array([e[2][0].reward for e in self.experience_replay[len(self.experience_replay) // 2 :]])
