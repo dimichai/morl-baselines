@@ -191,7 +191,7 @@
           <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
         </button>
       </div>
-      <label class="toc-overlay-icon toc-header-icon no-toc" for="__toc">
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
         <div class="visually-hidden">Toggle table of contents sidebar</div>
         <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
       </label>
@@ -290,14 +290,78 @@
               <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
             </button>
           </div>
-          <label class="toc-overlay-icon toc-content-icon no-toc" for="__toc">
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
             <div class="visually-hidden">Toggle table of contents sidebar</div>
             <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
           </label>
         </div>
         <article role="main" id="furo-main-content">
-          <section id="miscellaneous">
-<h1>Miscellaneous<a class="headerlink" href="#miscellaneous" title="Link to this heading">¶</a></h1>
+          <section id="module-morl_baselines.common.utils">
+<span id="miscellaneous"></span><h1>Miscellaneous<a class="headerlink" href="#module-morl_baselines.common.utils" title="Link to this heading">¶</a></h1>
+<p>General utils for the MORL baselines.</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="morl_baselines.common.utils.linearly_decaying_value">
+<span class="sig-prename descclassname"><span class="pre">morl_baselines.common.utils.</span></span><span class="sig-name descname"><span class="pre">linearly_decaying_value</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">initial_value</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">decay_period</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">step</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">warmup_steps</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">final_value</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#morl_baselines.common.utils.linearly_decaying_value" title="Link to this definition">¶</a></dt>
+<dd><p>Returns the current value for a linearly decaying parameter.</p>
+<p>This follows the Nature DQN schedule of a linearly decaying epsilon (Mnih et
+al., 2015). The schedule is as follows:
+Begin at 1. until warmup_steps steps have been taken; then
+Linearly decay epsilon from 1. to epsilon in decay_period steps; and then
+Use epsilon from there on.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>decay_period</strong> – float, the period over which the value is decayed.</p></li>
+<li><p><strong>step</strong> – int, the number of training steps completed so far.</p></li>
+<li><p><strong>warmup_steps</strong> – int, the number of steps taken before the value is decayed.</p></li>
+<li><p><strong>value</strong> (<em>final</em>) – float, the final value to which to decay the value parameter.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>A float, the current value computed according to the schedule.</strong></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="morl_baselines.common.utils.make_gif">
+<span class="sig-prename descclassname"><span class="pre">morl_baselines.common.utils.</span></span><span class="sig-name descname"><span class="pre">make_gif</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">agent</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">weight</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fullpath</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fps</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">50</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">length</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">300</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#morl_baselines.common.utils.make_gif" title="Link to this definition">¶</a></dt>
+<dd><p>Render an episode and save it as a gif.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="morl_baselines.common.utils.nearest_neighbors">
+<span class="sig-prename descclassname"><span class="pre">morl_baselines.common.utils.</span></span><span class="sig-name descname"><span class="pre">nearest_neighbors</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">n</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">current_weight</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">all_weights</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">ndarray</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dist_metric</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Callable</span><span class="p"><span class="pre">[</span></span><span class="p"><span class="pre">[</span></span><span class="pre">ndarray</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">float</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#morl_baselines.common.utils.nearest_neighbors" title="Link to this definition">¶</a></dt>
+<dd><p>Returns the n closest neighbors of current_weight in all_weights, according to similarity metric.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>n</strong> – number of neighbors</p></li>
+<li><p><strong>current_weight</strong> – weight vector where we want the nearest neighbors</p></li>
+<li><p><strong>all_weights</strong> – all the possible weights, can contain current_weight as well</p></li>
+<li><p><strong>dist_metric</strong> – distance metric</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>the ids of the nearest neighbors in all_weights</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="morl_baselines.common.utils.reset_wandb_env">
+<span class="sig-prename descclassname"><span class="pre">morl_baselines.common.utils.</span></span><span class="sig-name descname"><span class="pre">reset_wandb_env</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#morl_baselines.common.utils.reset_wandb_env" title="Link to this definition">¶</a></dt>
+<dd><p>Reset the wandb environment variables.</p>
+<p>This is useful when running multiple sweeps in parallel, as wandb
+will otherwise try to use the same directory for all the runs.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="morl_baselines.common.utils.unique_tol">
+<span class="sig-prename descclassname"><span class="pre">morl_baselines.common.utils.</span></span><span class="sig-name descname"><span class="pre">unique_tol</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">a</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">ndarray</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tol</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0001</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">ndarray</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#morl_baselines.common.utils.unique_tol" title="Link to this definition">¶</a></dt>
+<dd><p>Returns unique elements of a list of np.arrays, within a tolerance.</p>
+</dd></dl>
+
 </section>
 
         </article>
@@ -343,8 +407,31 @@
         
       </footer>
     </div>
-    <aside class="toc-drawer no-toc">
+    <aside class="toc-drawer">
       
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            On this page
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">Miscellaneous</a><ul>
+<li><a class="reference internal" href="#morl_baselines.common.utils.linearly_decaying_value"><code class="docutils literal notranslate"><span class="pre">linearly_decaying_value()</span></code></a></li>
+<li><a class="reference internal" href="#morl_baselines.common.utils.make_gif"><code class="docutils literal notranslate"><span class="pre">make_gif()</span></code></a></li>
+<li><a class="reference internal" href="#morl_baselines.common.utils.nearest_neighbors"><code class="docutils literal notranslate"><span class="pre">nearest_neighbors()</span></code></a></li>
+<li><a class="reference internal" href="#morl_baselines.common.utils.reset_wandb_env"><code class="docutils literal notranslate"><span class="pre">reset_wandb_env()</span></code></a></li>
+<li><a class="reference internal" href="#morl_baselines.common.utils.unique_tol"><code class="docutils literal notranslate"><span class="pre">unique_tol()</span></code></a></li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
       
       
     </aside>
