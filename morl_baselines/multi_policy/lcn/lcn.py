@@ -572,7 +572,6 @@ class LCNTNDP(MOAgent, MOPolicy):
         pf_plot_limits: Optional[List[int]] = [0, 0.5],
         n_policies: int = 10,
         train_mode: str = "uniform",
-        update_interval: int = None,
         cd_threshold: float = 0.2
     ):
         """Train LCN.
@@ -593,7 +592,6 @@ class LCNTNDP(MOAgent, MOPolicy):
             pf_plot_limits: limits for the pareto front plot (only for 2 objectives)
             n_policies: number of policies to evaluate at each checkpoint
             train_mode: how to select experience replay episodes to train on, either "uniform" or "disttofront"
-            update_interval: interval at which to update the model (in steps), if None it will train at every step
             cd_threshold: threshold for crowding distance
         """
         if self.log:
