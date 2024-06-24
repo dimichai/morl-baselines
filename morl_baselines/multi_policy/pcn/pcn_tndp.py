@@ -19,7 +19,7 @@ from morl_baselines.common.performance_indicators import hypervolume
 
 import json
 from matplotlib import pyplot as plt
-from pcn import BasePCNModel, ContinuousActionsDefaultModel, DiscreteActionsDefaultModel
+from morl_baselines.multi_policy.pcn.pcn import BasePCNModel, ContinuousActionsDefaultModel, DiscreteActionsDefaultModel
 
 
 def crowding_distance(points):
@@ -81,7 +81,7 @@ class PCNTNDPModel(BasePCNModel):
 
     def __init__(self, state_dim: int, action_dim: int, reward_dim: int, scaling_factor: np.ndarray, hidden_dim: int, nr_layers: int = 1):
         """Initialize the PCN model."""
-        super().__init__()
+        super().__init__(state_dim, action_dim, reward_dim, scaling_factor, hidden_dim)
         # self.state_dim = state_dim
         # self.action_dim = action_dim
         # self.reward_dim = reward_dim
@@ -429,7 +429,6 @@ class PCNTNDP(MOAgent, MOPolicy):
         save_dir: str = "weights",
         pf_plot_limits: Optional[List[int]] = [0, 0.5],
         n_policies: int = 10,
-        update_interval: int = None,
         cd_threshold: float = 0.2
     ):
         """Train PCN.
@@ -451,7 +450,6 @@ class PCNTNDP(MOAgent, MOPolicy):
             save_dir: directory to save model weights
             pf_plot_limits: limits for the pareto front plot (only for 2 objectives)
             n_policies: number of policies to evaluate at each checkpoint
-            update_interval: interval at which to update the model (in steps), if None it will train at every step
             cd_threshold: threshold for crowding distance
         """
         max_return = max_return if max_return is not None else np.full(self.reward_dim, 100.0, dtype=np.float32)
@@ -503,7 +501,7 @@ class PCNTNDP(MOAgent, MOPolicy):
             loss = []
             entropy = []
             for _ in range(num_model_updates):
-                l, lp = self.update(g_returns)
+                l, lp = self.update()
                 loss.append(l.detach().cpu().numpy())
                 if not self.continuous_action:
                     lp = lp.detach().cpu().numpy()
@@ -588,10 +586,10 @@ class PCNTNDP(MOAgent, MOPolicy):
                     # Offline logger
                     if not os.path.exists(save_dir / 'metrics.csv'):
                         with open(save_dir / 'metrics.csv', 'w') as f:
-                            f.write('step,loss,entropy,train_hv,eval_hv,greedy_hv,lr\n')
+                            f.write('step,loss,entropy,train_hv,eval_hv,lr\n')
 
                     with open(save_dir / 'metrics.csv', 'a') as f:
-                        f.write(f"{self.global_step},{np.mean(loss)},{np.mean(entropy)},{hv},{hypervolume(ref_point, e_returns)},{hypervolume(ref_point, g_returns)},{self.opt.param_groups[0]['lr']}\n")
+                        f.write(f"{self.global_step},{np.mean(loss)},{np.mean(entropy)},{hv},{hypervolume(ref_point, e_returns)},{self.opt.param_groups[0]['lr']}\n")
                 
                 non_dominated_er = get_non_dominated_inds(e_returns)
                 non_dominated_r = get_non_dominated_inds(returns)
