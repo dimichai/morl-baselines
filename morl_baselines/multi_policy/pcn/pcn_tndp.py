@@ -204,6 +204,7 @@ class PCNTNDP(MOAgent, MOPolicy):
         """Get configuration of PCN model."""
         return {
             "env_id": self.env.unwrapped.spec.id,
+            "reward_dim": self.reward_dim,
             "batch_size": self.batch_size,
             "gamma": self.gamma,
             "learning_rate": self.learning_rate,
@@ -491,9 +492,7 @@ class PCNTNDP(MOAgent, MOPolicy):
             # add episode in-place
             self._add_episode(transitions, max_size=max_buffer_size, step=self.global_step)
 
-        g_returns = None
         returns = None
-        n_train_checkpoints = 0
         while self.global_step < total_timesteps:
             loss = []
             entropy = []
