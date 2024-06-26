@@ -12,6 +12,7 @@ from morl_baselines.common.pareto import filter_pareto_dominated
 from morl_baselines.common.performance_indicators import (
     cardinality,
     expected_utility,
+    gini,
     hypervolume,
     igd,
     maximum_utility_loss,
@@ -199,6 +200,10 @@ def log_all_multi_policy_metrics(
     sp = sparsity(filtered_front)
     eum = expected_utility(filtered_front, weights_set=equally_spaced_weights(reward_dim, n_sample_weights))
     card = cardinality(filtered_front)
+    gi = gini(np.array(filtered_front))
+    utils_sum = np.sum(filtered_front, axis=1)
+    nash_welfare = np.prod(filtered_front, axis=1)
+    sen_welfare = utils_sum * (1 - gi)
 
     wandb.log(
         {
@@ -207,6 +212,14 @@ def log_all_multi_policy_metrics(
             "eval/eum": eum,
             "eval/cardinality": card,
             "global_step": global_step,
+            "eval/gini_median": np.median(gi),
+            "eval/gini_min": np.min(gi),
+            "eval/efficiency_median": np.median(utils_sum),
+            "eval/efficiency_max": np.max(utils_sum),
+            "eval/sen_welfare_median": np.median(sen_welfare),
+            "eval/sen_welfare_max": np.max(sen_welfare),
+            "eval/nash_welfare_median": np.median(nash_welfare),
+            "eval/nash_welfare_max": np.max(nash_welfare)
         },
         commit=False,
     )

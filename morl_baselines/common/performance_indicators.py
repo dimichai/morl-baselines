@@ -122,3 +122,22 @@ def maximum_utility_loss(
     max_scalarized_values = [np.max([utility(weight, point) for point in front]) for weight in weights_set]
     utility_losses = [max_scalarized_values_ref[i] - max_scalarized_values[i] for i in range(len(max_scalarized_values))]
     return np.max(utility_losses)
+
+def gini(x, normalized=True):
+    """Compute the Gini index of a given numpy array.
+    TODO: make it work for all-dimensional arrays
+
+    Args:
+        x (np.array): array of values (e.g. rewards)
+        normalized (bool, optional): whether to normalize the Gini index. Defaults to True.
+
+    Returns:
+        float: Gini index
+    """
+    sorted_x = np.sort(x, axis=1)
+    n = x.shape[1]
+    cum_x = np.cumsum(sorted_x, axis=1, dtype=float)
+    gi = (n + 1 - 2 * np.sum(cum_x, axis=1) / cum_x[:, -1]) / n
+    if normalized:
+        gi = gi * (n / (n - 1))
+    return gi

@@ -120,22 +120,3 @@ def reset_wandb_env():
     for k, v in os.environ.items():
         if k.startswith("WANDB_") and k not in exclude:
             del os.environ[k]
-
-def gini(x, normalized=True):
-    """Compute the Gini index of a given numpy array.
-    TODO: make it work for all-dimensional arrays
-
-    Args:
-        x (np.array): array of values (e.g. rewards)
-        normalized (bool, optional): whether to normalize the Gini index. Defaults to True.
-
-    Returns:
-        float: Gini index
-    """
-    sorted_x = np.sort(x, axis=1)
-    n = x.shape[1]
-    cum_x = np.cumsum(sorted_x, axis=1, dtype=float)
-    gi = (n + 1 - 2 * np.sum(cum_x, axis=1) / cum_x[:, -1]) / n
-    if normalized:
-        gi = gi * (n / (n - 1))
-    return gi
