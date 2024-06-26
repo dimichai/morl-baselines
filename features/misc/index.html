@@ -300,24 +300,6 @@
 <span id="miscellaneous"></span><h1>Miscellaneous<a class="headerlink" href="#module-morl_baselines.common.utils" title="Link to this heading">¶</a></h1>
 <p>General utils for the MORL baselines.</p>
 <dl class="py function">
-<dt class="sig sig-object py" id="morl_baselines.common.utils.gini">
-<span class="sig-prename descclassname"><span class="pre">morl_baselines.common.utils.</span></span><span class="sig-name descname"><span class="pre">gini</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">normalized</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#morl_baselines.common.utils.gini" title="Link to this definition">¶</a></dt>
-<dd><p>Compute the Gini index of a given numpy array.
-TODO: make it work for all-dimensional arrays</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>x</strong> (<em>np.array</em>) – array of values (e.g. rewards)</p></li>
-<li><p><strong>normalized</strong> (<em>bool</em><em>, </em><em>optional</em>) – whether to normalize the Gini index. Defaults to True.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p><strong>float</strong> – Gini index</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py function">
 <dt class="sig sig-object py" id="morl_baselines.common.utils.linearly_decaying_value">
 <span class="sig-prename descclassname"><span class="pre">morl_baselines.common.utils.</span></span><span class="sig-name descname"><span class="pre">linearly_decaying_value</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">initial_value</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">decay_period</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">step</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">warmup_steps</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">final_value</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#morl_baselines.common.utils.linearly_decaying_value" title="Link to this definition">¶</a></dt>
 <dd><p>Returns the current value for a linearly decaying parameter.</p>
@@ -438,7 +420,6 @@ will otherwise try to use the same directory for all the runs.</p>
           <div class="toc-tree">
             <ul>
 <li><a class="reference internal" href="#">Miscellaneous</a><ul>
-<li><a class="reference internal" href="#morl_baselines.common.utils.gini"><code class="docutils literal notranslate"><span class="pre">gini()</span></code></a></li>
 <li><a class="reference internal" href="#morl_baselines.common.utils.linearly_decaying_value"><code class="docutils literal notranslate"><span class="pre">linearly_decaying_value()</span></code></a></li>
 <li><a class="reference internal" href="#morl_baselines.common.utils.make_gif"><code class="docutils literal notranslate"><span class="pre">make_gif()</span></code></a></li>
 <li><a class="reference internal" href="#morl_baselines.common.utils.nearest_neighbors"><code class="docutils literal notranslate"><span class="pre">nearest_neighbors()</span></code></a></li>
