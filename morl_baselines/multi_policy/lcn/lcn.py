@@ -6,7 +6,7 @@ from typing import List, Optional, Type, Union
 
 import gymnasium as gym
 import numpy as np
-from morl_baselines.common.utils import gini
+from morl_baselines.common.performance_indicators import gini
 import torch as th
 import torch.nn as nn
 import torch.nn.functional as F
