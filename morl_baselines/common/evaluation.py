@@ -144,7 +144,7 @@ def policy_evaluation_mo(
     Returns:
         (float, float, np.ndarray, np.ndarray): Avg scalarized return, Avg scalarized discounted return, Avg vectorized return, Avg vectorized discounted return
     """
-    evals = [eval_mo(agent=agent, env=env, w=w, scalarization=scalarization) for _ in range(rep)]
+    evals = [eval_mo(agent=agent, env=env, w=w, scalarization=scalarization, return_obs=True) for _ in range(rep)]
     avg_scalarized_return = np.mean([eval[0] for eval in evals])
     avg_scalarized_discounted_return = np.mean([eval[1] for eval in evals])
     avg_vec_return = np.mean([eval[2] for eval in evals], axis=0)
