@@ -82,7 +82,7 @@ class QNet(nn.Module):
         wf = self.weights_features(w)
         q_values = self.net(sf * wf)
         q_values = q_values.view(-1, self.action_dim, self.phi_dim)  # Batch size X Actions X Rewards
-        return q_values - 10000 * (1-action_mask.unsqueeze(-1))
+        return q_values - 10000 * (1-action_mask.int().unsqueeze(-1))
 
 
 class GPIPD(MOPolicy, MOAgent):
@@ -589,7 +589,7 @@ class GPIPD(MOPolicy, MOAgent):
         q_values = self.q_nets[0](obs_m, M, action_mask)
 
         scalar_q_values = th.einsum("r,bar->ba", w, q_values)  # q(s,a,w_i) = q(s,a,w_i) . w
-        max_q, a = th.max(scalar_q_values - 10000 * (1-th.tensor(action_mask).to(self.device)), dim=1)
+        max_q, a = th.max(scalar_q_values - 10000 * (1-th.tensor(action_mask).int().to(self.device)), dim=1)
         policy_index = th.argmax(max_q)  # max_i max_a q(s,a,w_i)
         action = a[policy_index].detach().item()
 
@@ -629,7 +629,7 @@ class GPIPD(MOPolicy, MOAgent):
         psi = th.min(th.stack([psi_net(obs, w) for psi_net in self.q_nets]), dim=0)[0]
         # psi = self.psi_nets[0](obs, w)
         q = th.einsum("r,bar->ba", w, psi)
-        max_act = th.argmax(q - 10000 * (1-action_mask), dim=1)
+        max_act = th.argmax(q - 10000 * (1-action_mask.int()), dim=1)
         return max_act.detach().item()
 
     @th.no_grad()
