@@ -50,7 +50,10 @@ def eval_mo(
     while not done:
         if render:
             env.render()
-        obs, r, terminated, truncated, info = env.step(agent.eval(obs, w, action_mask=info['action_mask']))
+        if 'action_mask' in info:
+            obs, r, terminated, truncated, info = env.step(agent.eval(obs, w, action_mask=info['action_mask']))
+        else:
+            obs, r, terminated, truncated, info = env.step(agent.eval(obs, w))
         all_obs.append(obs[0])
         done = terminated or truncated
         vec_return += r

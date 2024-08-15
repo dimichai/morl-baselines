@@ -78,14 +78,23 @@ class ReplayBuffer:
         inds = np.random.choice(self.size, batch_size, replace=replace)
         if use_cer:
             inds[0] = self.ptr - 1  # always use last experience
-        experience_tuples = (
-            self.obs[inds],
-            self.actions[inds],
-            self.rewards[inds],
-            self.next_obs[inds],
-            self.dones[inds],
-            self.action_masks[inds] if self.return_action_mask else None
-        )
+        if self.return_action_mask:
+            experience_tuples = (
+                self.obs[inds],
+                self.actions[inds],
+                self.rewards[inds],
+                self.next_obs[inds],
+                self.dones[inds],
+                self.action_masks[inds] if self.return_action_mask else None
+            )
+        else:
+            experience_tuples = (
+                self.obs[inds],
+                self.actions[inds],
+                self.rewards[inds],
+                self.next_obs[inds],
+                self.dones[inds]
+            )
         if to_tensor:
             return tuple(map(lambda x: th.tensor(x, device=device), experience_tuples))
         else:
