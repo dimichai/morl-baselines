@@ -468,15 +468,15 @@ class LCNTNDP(MOAgent, MOPolicy):
 
     def _run_episode(self, env, desired_return, desired_horizon, max_return, starting_loc=None, eval_mode=False):
         transitions = []
-        state, info = env.reset(loc=starting_loc)
-        states = [state['location']]
-        obs = state['location_vector']
+        state, info = env.reset(options={'loc':starting_loc})
+        states = [info['location_grid_coordinates']]
+        obs = state
         done = False
         while not done:
             action = self._act(obs, desired_return, desired_horizon, info['action_mask'], eval_mode=eval_mode)
             n_state, reward, terminated, truncated, info = env.step(action)
-            states.append(n_state['location'])
-            n_obs = n_state['location_vector']
+            states.append(info['location_grid_coordinates'])
+            n_obs = n_state
             done = terminated or truncated
 
             transitions.append(
@@ -602,13 +602,11 @@ class LCNTNDP(MOAgent, MOPolicy):
         self.experience_replay = []
         for _ in range(num_er_episodes):
             transitions = []
-            obs, info = self.env.reset(loc=starting_loc)
-            obs = obs['location_vector']
+            obs, info = self.env.reset(options={'loc':starting_loc})
             done = False
             while not done:
                 action = self.env.action_space.sample(mask=info['action_mask'])
                 n_obs, reward, terminated, truncated, info = self.env.step(action)
-                n_obs = n_obs['location_vector']
                 transitions.append(Transition(obs, action, info['action_mask'], np.float32(reward).copy(), n_obs, terminated))
                 done = terminated or truncated
                 obs = n_obs
@@ -788,4 +786,3 @@ class LCNTNDP(MOAgent, MOPolicy):
                 plt.close(fig)
 
         self.env.close()
-        

@@ -204,7 +204,7 @@ class GPIPD(MOPolicy, MOAgent):
         self.num_nets = num_nets
         self.drop_rate = drop_rate
         self.layer_norm = layer_norm
-        if env.observation_type == 'location_vector':
+        if env.state_representation == 'one_hot':
             self.observation_shape = (env.city.grid_size, )
 
         # Q-Networks
