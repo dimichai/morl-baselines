@@ -220,6 +220,7 @@ class LCNTNDP(MOAgent, MOPolicy):
             "continuous_action": self.continuous_action,
             "noise": self.noise,
             "seed": self.seed,
+            "state_representation": self.env.unwrapped.state_representation,
         }
 
     def update(self):

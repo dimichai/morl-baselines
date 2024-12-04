@@ -214,6 +214,7 @@ class PCNTNDP(MOAgent, MOPolicy):
             "continuous_action": self.continuous_action,
             "noise": self.noise,
             "seed": self.seed,
+            "state_representation": self.env.unwrapped.state_representation,
     }
 
     def update(self):
@@ -637,7 +638,7 @@ class PCNTNDP(MOAgent, MOPolicy):
             # Plot the generated lines of the final policies
             for i in range(len(e_states)):
                 fig, ax = plt.subplots(figsize=(5, 5))
-                plot_grid = gen_line_plot_grid(np.array(e_states[i]), self.env.city.grid_x_size, self.env.city.grid_y_size)
+                plot_grid = gen_line_plot_grid(np.array(e_states[i]), self.env.unwrapped.city.grid_x_size, self.env.unwrapped.city.grid_y_size)
                 ax.imshow(plot_grid)
                 highlight_cells([e_states[i][0]], ax=ax, color='limegreen')
                 fig.suptitle(f'Generated Line | Checkpoint {n_checkpoints} | Line {i} | ND: {non_dominated_er[i]}')

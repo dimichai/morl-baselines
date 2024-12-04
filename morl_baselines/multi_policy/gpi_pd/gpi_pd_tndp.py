@@ -321,6 +321,7 @@ class GPIPD(MOPolicy, MOAgent):
             "drop_rate": self.drop_rate,
             "layer_norm": self.layer_norm,
             "seed": self.seed,
+            "state_representation": self.env.unwrapped.state_representation,
         }
 
     def save(self, save_replay_buffer=True, save_dir="weights/", filename=None):
