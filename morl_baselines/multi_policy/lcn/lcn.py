@@ -703,12 +703,12 @@ class LCNTNDP(MOAgent, MOPolicy):
                     )
 
                     # Offline logger
-                    if not os.path.exists(save_dir / 'metrics.csv'):
-                        with open(save_dir / 'metrics.csv', 'w') as f:
-                            f.write('step,loss,entropy,train_hv,eval_hv,lr\n')
+                    # if not os.path.exists(save_dir / 'metrics.csv'):
+                    #     with open(save_dir / 'metrics.csv', 'w') as f:
+                    #         f.write('step,loss,entropy,train_hv,eval_hv,lr\n')
 
-                    with open(save_dir / 'metrics.csv', 'a') as f:
-                        f.write(f"{self.global_step},{np.mean(loss)},{np.mean(entropy)},{hv},{hypervolume(ref_point, e_returns)},{self.opt.param_groups[0]['lr']}\n")
+                    # with open(save_dir / 'metrics.csv', 'a') as f:
+                    #     f.write(f"{self.global_step},{np.mean(loss)},{np.mean(entropy)},{hv},{hypervolume(ref_point, e_returns)},{self.opt.param_groups[0]['lr']}\n")
                 
                 non_dominated_er = get_non_dominated_inds(e_returns)
                 non_dominated_r = get_non_dominated_inds(returns)
@@ -761,32 +761,32 @@ class LCNTNDP(MOAgent, MOPolicy):
                 #     plt.close()
 
                 # n_checkpoints += 1
-        if self.log:
-            output_log = {}
-            output_log['env'] = self.env.spec.id
+        # if self.log:
+        #     output_log = {}
+        #     output_log['env'] = self.env.spec.id
             
-            # Get the current-achieved best front.
-            # get best episodes, according to their crowding distance
-            episodes = self._nlargest(n_policies, self.cd_threshold)
-            returns, horizons = list(zip(*[(e[2][0].reward, len(e[2])) for e in episodes]))
-            # keep only non-dominated returns
-            nd_i = get_non_dominated_inds(np.array(returns))
-            output_log['best_front_r'] = np.array(returns)[nd_i].tolist()
-            output_log['best_front_h'] = np.array(horizons)[nd_i].tolist()
-            output_log['starting_loc'] = starting_loc
+        #     # Get the current-achieved best front.
+        #     # get best episodes, according to their crowding distance
+        #     episodes = self._nlargest(n_policies, self.cd_threshold)
+        #     returns, horizons = list(zip(*[(e[2][0].reward, len(e[2])) for e in episodes]))
+        #     # keep only non-dominated returns
+        #     nd_i = get_non_dominated_inds(np.array(returns))
+        #     output_log['best_front_r'] = np.array(returns)[nd_i].tolist()
+        #     output_log['best_front_h'] = np.array(horizons)[nd_i].tolist()
+        #     output_log['starting_loc'] = starting_loc
 
-            with open(f"{save_dir}/output.txt", 'w') as f:
-                f.write(json.dumps(output_log))
+        #     with open(f"{save_dir}/output.txt", 'w') as f:
+        #         f.write(json.dumps(output_log))
 
-            # Plot the generated lines of the final policies
-            for i in range(len(e_states)):
-                fig, ax = plt.subplots(figsize=(5, 5))
-                plot_grid = gen_line_plot_grid(np.array(e_states[i]), self.env.city.grid_x_size, self.env.city.grid_y_size)
-                ax.imshow(plot_grid)
-                highlight_cells([e_states[i][0]], ax=ax, color='limegreen')
-                fig.suptitle(f'Generated Line | Checkpoint {n_checkpoints} | Line {i} | ND: {non_dominated_er[i]}')
-                ax.set_title(f'Reward {e_returns[i].round(4)} | Horizon {len(e_states[i])}')
-                fig.savefig(f'{save_dir}/Line_{n_checkpoints}_{i}.png')
-                plt.close(fig)
+        #     # Plot the generated lines of the final policies
+        #     for i in range(len(e_states)):
+        #         fig, ax = plt.subplots(figsize=(5, 5))
+        #         plot_grid = gen_line_plot_grid(np.array(e_states[i]), self.env.city.grid_x_size, self.env.city.grid_y_size)
+        #         ax.imshow(plot_grid)
+        #         highlight_cells([e_states[i][0]], ax=ax, color='limegreen')
+        #         fig.suptitle(f'Generated Line | Checkpoint {n_checkpoints} | Line {i} | ND: {non_dominated_er[i]}')
+        #         ax.set_title(f'Reward {e_returns[i].round(4)} | Horizon {len(e_states[i])}')
+        #         fig.savefig(f'{save_dir}/Line_{n_checkpoints}_{i}.png')
+        #         plt.close(fig)
 
         self.env.close()
