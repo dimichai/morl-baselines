@@ -280,6 +280,9 @@ class LCNTNDP(MOAgent, MOPolicy):
         # crowding distance of each point, check ones that are too close together
         distances = crowding_distance(returns)
         sma = np.argwhere(distances <= threshold).flatten()
+        num_penalized = int(sma.shape[0])
+        if self.log:
+            wandb.log({"train/cd_penalized_points": num_penalized, "global_step": getattr(self, "global_step", 0)})
 
         if self.distance_ref == 'nondominated':
             lv = lorenz_vector(np.array(returns))
