@@ -468,6 +468,7 @@ class PCNTNDP(MOAgent, MOPolicy):
                     "num_policies": n_policies,
                     "save_dir": save_dir, 
                     "nr_stations": nr_stations, 
+                    "cd_threshold": cd_threshold,
                 }
             )
         self.global_step = 0

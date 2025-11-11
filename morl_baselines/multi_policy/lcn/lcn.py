@@ -594,7 +594,8 @@ class LCNTNDP(MOAgent, MOPolicy):
                     "save_dir": save_dir, 
                     "nr_stations": nr_stations, 
                     "distance_ref": self.distance_ref, 
-                    "lcn_lambda": self.lcn_lambda
+                    "lcn_lambda": self.lcn_lambda,
+                    "cd_threshold": cd_threshold,
                 }
             ) 
         self.global_step = 0
