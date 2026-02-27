@@ -204,8 +204,6 @@ class GPIPD(MOPolicy, MOAgent):
         self.num_nets = num_nets
         self.drop_rate = drop_rate
         self.layer_norm = layer_norm
-        if env.state_representation == 'one_hot':
-            self.observation_shape = (env.city.grid_size, )
 
         # Q-Networks
         self.q_nets = [
@@ -321,7 +319,6 @@ class GPIPD(MOPolicy, MOAgent):
             "drop_rate": self.drop_rate,
             "layer_norm": self.layer_norm,
             "seed": self.seed,
-            "state_representation": self.env.unwrapped.state_representation,
         }
 
     def save(self, save_replay_buffer=True, save_dir="weights/", filename=None):
