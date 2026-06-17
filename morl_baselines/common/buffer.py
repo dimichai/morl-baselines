@@ -1,7 +1,20 @@
 """Replay buffer for multi-objective reinforcement learning."""
 
+from typing import NamedTuple
+
 import numpy as np
 import torch as th
+
+
+class ReplayBufferSamplesNp(NamedTuple):
+    """Samples from the replay buffer in numpy format."""
+
+    observations: np.ndarray
+    actions: np.ndarray
+    rewards: np.ndarray
+    next_observations: np.ndarray
+    dones: np.ndarray
+    idxes: np.ndarray
 
 
 class ReplayBuffer:
@@ -73,7 +86,7 @@ class ReplayBuffer:
             device: Device to use
 
         Returns:
-            A tuple of (observations, actions, rewards, next observations, dones)
+            A tuple of (observations, actions, rewards, next observations, dones, idxes)
 
         """
         inds = np.random.choice(self.size, batch_size, replace=replace)
@@ -89,12 +102,13 @@ class ReplayBuffer:
                 self.action_masks[inds] if self.return_action_mask else None
             )
         else:
-            experience_tuples = (
+            experience_tuples = ReplayBufferSamplesNp(
                 self.obs[inds],
                 self.actions[inds],
                 self.rewards[inds],
                 self.next_obs[inds],
-                self.dones[inds]
+                self.dones[inds],
+                inds,
             )
         if to_tensor:
             return tuple(map(lambda x: th.tensor(x, device=device), experience_tuples))

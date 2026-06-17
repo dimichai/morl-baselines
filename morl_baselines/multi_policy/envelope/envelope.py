@@ -253,7 +253,7 @@ class Envelope(MOPolicy, MOAgent):
             path: Path to the model.
             load_replay_buffer: Whether to load the replay buffer too.
         """
-        params = th.load(path)
+        params = th.load(path, weights_only=False)
         self.q_net.load_state_dict(params["q_net_state_dict"])
         self.target_q_net.load_state_dict(params["q_net_state_dict"])
         self.q_optim.load_state_dict(params["q_net_optimizer_state_dict"])
@@ -267,23 +267,14 @@ class Envelope(MOPolicy, MOAgent):
     def update(self):
         critic_losses = []
         for g in range(self.gradient_updates):
-            if self.per:
-                (
-                    b_obs,
-                    b_actions,
-                    b_rewards,
-                    b_next_obs,
-                    b_dones,
-                    b_inds,
-                ) = self.__sample_batch_experiences()
-            else:
-                (
-                    b_obs,
-                    b_actions,
-                    b_rewards,
-                    b_next_obs,
-                    b_dones,
-                ) = self.__sample_batch_experiences()
+            (
+                b_obs,
+                b_actions,
+                b_rewards,
+                b_next_obs,
+                b_dones,
+                b_inds,
+            ) = self.__sample_batch_experiences()
 
             sampled_w = (
                 th.tensor(random_weights(dim=self.reward_dim, n=self.num_sample_w, dist="gaussian", rng=self.np_random))
